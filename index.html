@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#F6EED8">
+  <meta name="description" content="AGENDA, l'organisation familiale partagée, fluide et apaisée.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="AGENDA">
+  <title>AGENDA — La famille au même rythme</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/icons/favicon.ico">
+  <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.2 3.3L7.5 7.5l3.3 1.2L12 12l1.2-3.3 3.3-1.2-3.3-1.2L12 3Z"/><path d="m5 13-.8 2.2L2 16l2.2.8L5 19l.8-2.2L8 16l-2.2-.8L5 13ZM19 13l-.8 2.2L16 16l2.2.8L19 19l.8-2.2L22 16l-2.2-.8L19 13Z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></symbol>
+    <symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="m1 1 22 22M8.5 8.5A10.7 10.7 0 0 1 12 8c3 0 5.6 1.2 7.5 3M5 11.5a11 11 0 0 0-2 1.5M8.5 16.5A5 5 0 0 1 12 15c1.1 0 2.1.3 3 .9M12 20h.01"/><path d="M2.5 8.5A15 15 0 0 1 12 5c1.4 0 2.8.2 4 .5"/></symbol>
+    <symbol id="i-arrow-up-right" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+  </svg>
+
+  <div class="app-shell" id="appShell">
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <header class="topbar">
+      <button class="brand-lockup tap" data-view="home" aria-label="Retour à l'accueil">
+        <img src="assets/brand/logo-symbol.svg" alt="" class="brand-symbol">
+        <span class="brand-word">AGENDA</span>
+      </button>
+      <div class="topbar-actions">
+        <span class="connection-pill" id="connectionPill" role="status">
+          <span class="connection-dot"></span>
+          <span>Synchronisé</span>
+        </span>
+        <button class="icon-button tap" id="notificationButton" aria-label="Notifications">
+          <svg><use href="#i-bell"></use></svg>
+          <span class="notification-dot"></span>
+        </button>
+      </div>
+    </header>
+
+    <main class="main" id="mainContent">
+      <section class="view is-active" id="view-home" data-view-section="home">
+        <div class="welcome-row reveal">
+          <div>
+            <p class="eyebrow" id="todayEyebrow">Mercredi 5 août</p>
+            <h1><span id="greeting">Bonsoir</span>, la famille.</h1>
+          </div>
+          <button class="date-orbit tap" id="goTodayButton" aria-label="Revenir à aujourd'hui">
+            <span class="date-orbit-ring"></span>
+            <span id="orbitDay">05</span>
+            <small id="orbitMonth">AOÛ</small>
+          </button>
+        </div>
+
+        <section class="hero-card reveal" aria-labelledby="heroTitle">
+          <div class="hero-glow"></div>
+          <div class="hero-content">
+            <p class="hero-kicker"><svg><use href="#i-sparkles"></use></svg> Le rythme familial</p>
+            <h2 id="heroTitle">Une journée bien remplie,<br><em>mais parfaitement alignée.</em></h2>
+            <div class="hero-pulse">
+              <div class="pulse-copy"><strong id="heroEventCount">5 rendez-vous</strong><span>répartis sans conflit</span></div>
+              <div class="pulse-meter" aria-label="Charge de la journée"><span id="pulseMeterFill"></span></div>
+            </div>
+          </div>
+          <img src="assets/brand/logo-symbol-light.svg" alt="" class="hero-tree">
+        </section>
+
+        <section class="section-block reveal" aria-labelledby="memberFilterTitle">
+          <div class="section-heading compact-heading">
+            <div>
+              <p class="eyebrow" id="memberFilterTitle">Qui regarde ?</p>
+            </div>
+            <button class="text-button tap" data-view="family">Gérer la famille <svg><use href="#i-arrow-up-right"></use></svg></button>
+          </div>
+          <div class="member-filter" id="memberFilter" role="listbox" aria-label="Filtrer par membre"></div>
+        </section>
+
+        <section class="section-block reveal" aria-labelledby="weekTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Cette semaine</p>
+              <h2 id="weekTitle">Glisse dans le temps.</h2>
+            </div>
+            <div class="week-controls">
+              <button class="icon-button mini tap" id="previousWeek" aria-label="Semaine précédente"><svg><use href="#i-chevron-left"></use></svg></button>
+              <button class="icon-button mini tap" id="nextWeek" aria-label="Semaine suivante"><svg><use href="#i-chevron-right"></use></svg></button>
+            </div>
+          </div>
+          <div class="day-ribbon" id="dayRibbon" aria-label="Jours de la semaine"></div>
+        </section>
+
+        <section class="section-block timeline-section reveal" aria-labelledby="timelineTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow" id="selectedDateLabel">Aujourd’hui</p>
+              <h2 id="timelineTitle">Le fil de la journée.</h2>
+            </div>
+            <button class="round-action tap" id="quickAddButton" aria-label="Ajouter un événement"><svg><use href="#i-plus"></use></svg></button>
+          </div>
+          <div class="timeline" id="timeline" aria-live="polite"></div>
+        </section>
+
+        <section class="insight-grid reveal" aria-label="Aperçu familial">
+          <article class="insight-card memory-card">
+            <p class="card-kicker">Moment à protéger</p>
+            <h3>Dîner tous ensemble</h3>
+            <p>Le premier créneau commun de la semaine est jeudi à 19 h 30.</p>
+            <div class="family-stack" id="familyStack"></div>
+          </article>
+          <article class="insight-card focus-card">
+            <div class="focus-icon"><svg><use href="#i-heart"></use></svg></div>
+            <p class="card-kicker">Équilibre</p>
+            <h3><span id="freeTimeValue">2 h 40</span> de temps libre</h3>
+            <p>Encore disponible aujourd’hui pour ralentir.</p>
+          </article>
+        </section>
+      </section>
+
+      <section class="view" id="view-agenda" data-view-section="agenda" aria-labelledby="agendaTitle">
+        <div class="page-heading reveal">
+          <div>
+            <p class="eyebrow">Vue panoramique</p>
+            <h1 id="agendaTitle">L’agenda, autrement.</h1>
+            <p>Une semaine en mouvement, sans case rigide.</p>
+          </div>
+          <button class="round-action large tap" data-open-event aria-label="Créer un événement"><svg><use href="#i-plus"></use></svg></button>
+        </div>
+
+        <div class="agenda-toolbar reveal">
+          <div class="segmented-control" role="group" aria-label="Mode d'affichage">
+            <button class="is-active tap" data-agenda-mode="flow"><svg><use href="#i-list"></use></svg>Flux</button>
+            <button class="tap" data-agenda-mode="week"><svg><use href="#i-grid"></use></svg>Semaine</button>
+          </div>
+          <button class="today-chip tap" id="agendaTodayButton">Aujourd’hui</button>
+        </div>
+
+        <div id="agendaFlow" class="agenda-flow reveal"></div>
+        <div id="agendaWeek" class="agenda-week reveal" hidden></div>
+      </section>
+
+      <section class="view" id="view-family" data-view-section="family" aria-labelledby="familyTitle">
+        <div class="page-heading reveal">
+          <div>
+            <p class="eyebrow">Votre cercle</p>
+            <h1 id="familyTitle">Chacun son rythme.<br>Une seule harmonie.</h1>
+          </div>
+          <button class="icon-button tap" id="addMemberButton" aria-label="Ajouter un membre"><svg><use href="#i-plus"></use></svg></button>
+        </div>
+
+        <section class="family-pulse-card reveal">
+          <div class="pulse-orbit" aria-hidden="true">
+            <span class="orbit-core"><img src="assets/brand/logo-symbol-light.svg" alt=""></span>
+            <span class="orbit-person orbit-a"></span>
+            <span class="orbit-person orbit-b"></span>
+            <span class="orbit-person orbit-c"></span>
+            <span class="orbit-person orbit-d"></span>
+          </div>
+          <div>
+            <p class="card-kicker">Pouls familial</p>
+            <h2>Tout le monde est aligné.</h2>
+            <p id="familyPulseCopy">Aucun conflit détecté dans les prochaines 48 heures.</p>
+          </div>
+        </section>
+
+        <div class="family-cards" id="familyCards"></div>
+      </section>
+
+      <section class="view" id="view-focus" data-view-section="focus" aria-labelledby="focusTitle">
+        <div class="page-heading reveal">
+          <div>
+            <p class="eyebrow">Espace calme</p>
+            <h1 id="focusTitle">Moins de bruit.<br>Plus de présence.</h1>
+          </div>
+        </div>
+
+        <section class="calm-card reveal">
+          <div class="calm-sun"><svg><use href="#i-sun"></use></svg></div>
+          <p class="card-kicker">Temps pour soi</p>
+          <h2 id="calmHeadline">Votre prochain vrai moment libre commence à 20 h 30.</h2>
+          <p id="calmBody">AGENDA protège automatiquement les respirations entre les obligations.</p>
+          <button class="primary-button tap" id="protectMomentButton">Protéger ce moment</button>
+        </section>
+
+        <section class="settings-card reveal">
+          <div class="setting-row">
+            <div><strong>Mode doux</strong><span>Réduit les notifications non essentielles.</span></div>
+            <label class="switch"><input type="checkbox" id="quietModeToggle"><span></span></label>
+          </div>
+          <div class="setting-row">
+            <div><strong>Partage familial</strong><span>Code : <b id="familyCode">HORIZON-24</b></span></div>
+            <button class="secondary-button tap" id="copyFamilyCodeButton">Copier le lien</button>
+          </div>
+          <div class="setting-row">
+            <div><strong>Installation</strong><span>Ajoute AGENDA à l’écran d’accueil.</span></div>
+            <button class="secondary-button tap" id="installButton"><svg><use href="#i-download"></use></svg>Installer</button>
+          </div>
+          <div class="setting-row">
+            <div><strong>Données de démonstration</strong><span>Réinitialise les événements locaux.</span></div>
+            <button class="danger-text-button tap" id="resetButton"><svg><use href="#i-trash"></use></svg>Réinitialiser</button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navigation principale">
+      <button class="nav-item is-active tap" data-view="home"><svg><use href="#i-home"></use></svg><span>Aujourd’hui</span></button>
+      <button class="nav-item tap" data-view="agenda"><svg><use href="#i-calendar"></use></svg><span>Agenda</span></button>
+      <button class="nav-add tap" data-open-event aria-label="Ajouter un événement"><span><svg><use href="#i-plus"></use></svg></span></button>
+      <button class="nav-item tap" data-view="family"><svg><use href="#i-users"></use></svg><span>Famille</span></button>
+      <button class="nav-item tap" data-view="focus"><svg><use href="#i-sparkles"></use></svg><span>Respirer</span></button>
+    </nav>
+  </div>
+
+  <dialog class="event-dialog" id="eventDialog" aria-labelledby="dialogTitle">
+    <form method="dialog" id="eventForm" class="event-sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div><p class="eyebrow">Nouveau moment</p><h2 id="dialogTitle">Ajouter à la vie de famille</h2></div>
+        <button type="button" class="icon-button tap" data-close-dialog aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
+      </header>
+
+      <div class="form-grid">
+        <label class="field field-wide"><span>Titre</span><input name="title" maxlength="80" required placeholder="Ex. Rendez-vous pédiatre"></label>
+        <label class="field"><span>Date</span><input type="date" name="date" required></label>
+        <label class="field"><span>Heure</span><input type="time" name="time" required></label>
+        <label class="field"><span>Durée</span><select name="duration"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 h</option><option value="90">1 h 30</option><option value="120">2 h</option></select></label>
+        <label class="field"><span>Catégorie</span><select name="category"><option value="family">Famille</option><option value="school">École</option><option value="health">Santé</option><option value="work">Travail</option><option value="sport">Sport</option><option value="home">Maison</option></select></label>
+        <label class="field field-wide"><span>Lieu</span><input name="location" maxlength="100" placeholder="Facultatif"></label>
+        <fieldset class="member-picker field-wide"><legend>Pour qui ?</legend><div id="dialogMemberPicker"></div></fieldset>
+        <label class="field field-wide"><span>Note</span><textarea name="notes" rows="3" maxlength="300" placeholder="Une information utile pour la famille…"></textarea></label>
+      </div>
+      <button class="primary-button submit-button tap" type="submit">Créer le moment <svg><use href="#i-arrow-up-right"></use></svg></button>
+    </form>
+  </dialog>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
