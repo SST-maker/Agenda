@@ -1,4 +1,4 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=1.1.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -16,6 +16,8 @@ const state = {
 const dateFormatter = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 const shortWeekday = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' });
 const monthShort = new Intl.DateTimeFormat('fr-FR', { month: 'short' });
+const monthLong = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
+const weekdayNarrow = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' });
 const longDate = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
 function parseISO(value) {
@@ -27,6 +29,13 @@ function startOfWeek(date) {
   const copy = new Date(date);
   const day = copy.getDay() || 7;
   copy.setDate(copy.getDate() - day + 1);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function startOfMonth(date) {
+  const copy = new Date(date);
+  copy.setDate(1);
   copy.setHours(0, 0, 0, 0);
   return copy;
 }
@@ -77,7 +86,7 @@ function renderHeader(data) {
   $('#orbitMonth').textContent = monthShort.format(today).replace('.', '').toUpperCase().slice(0, 3);
   const count = eventsForDate(data, toISO(today), 'all').length;
   $('#heroEventCount').textContent = `${count} rendez-vous`;
-  $('#pulseMeterFill').style.width = `${Math.min(96, Math.max(18, count * 16))}%`;
+  $('#pulseMeterFill').style.width = `${count === 0 ? 0 : Math.min(96, Math.max(18, count * 16))}%`;
   $('#quietModeToggle').checked = Boolean(data.settings.quietMode);
   $('#familyCode').textContent = store.getFamilyId();
 }
@@ -155,6 +164,21 @@ function renderInsights(data) {
   const occupied = eventsForDate(data, state.selectedDate, 'all').reduce((sum, event) => sum + event.duration, 0);
   const free = Math.max(0, 12 * 60 - occupied);
   $('#freeTimeValue').textContent = formatDuration(free);
+
+  const nowKey = `${toISO(new Date())}${new Date().toTimeString().slice(0, 5)}`;
+  const sharedEvent = data.events
+    .filter((event) => data.members.every((member) => event.memberIds.includes(member.id)))
+    .filter((event) => `${event.date}${event.time}` >= nowKey)
+    .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))[0];
+
+  if (sharedEvent) {
+    const eventDate = parseISO(sharedEvent.date);
+    $('#protectedMomentTitle').textContent = sharedEvent.title;
+    $('#protectedMomentCopy').textContent = `${capitalize(longDate.format(eventDate))} à ${sharedEvent.time}, pour toute la famille.`;
+  } else {
+    $('#protectedMomentTitle').textContent = 'Premier moment à créer';
+    $('#protectedMomentCopy').textContent = 'Votre agenda est vide. Planifiez ici votre prochain temps partagé.';
+  }
 }
 
 function renderAgenda(data) {
@@ -177,6 +201,76 @@ function renderAgenda(data) {
     const events = eventsForDate(data, iso);
     return `<article class="wave-day ${sameDay(day, new Date()) ? 'is-today' : ''}"><header><span>${shortWeekday.format(day).replace('.', '')}</span><strong>${day.getDate()}</strong></header>${events.map((event) => `<div class="wave-event"><time>${event.time}</time><strong>${escapeHTML(event.title)}</strong></div>`).join('')}</article>`;
   }).join('')}</div>`;
+
+  renderMonth(data);
+  const targets = { flow: '#agendaFlow', week: '#agendaWeek', month: '#agendaMonth' };
+  Object.entries(targets).forEach(([mode, selector]) => { $(selector).hidden = state.agendaMode !== mode; });
+  $$('[data-agenda-mode]').forEach((button) => button.classList.toggle('is-active', button.dataset.agendaMode === state.agendaMode));
+}
+
+function renderMonth(data) {
+  const selected = parseISO(state.selectedDate);
+  const monthStart = startOfMonth(selected);
+  const gridStart = startOfWeek(monthStart);
+  const days = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index));
+  const selectedEvents = eventsForDate(data, state.selectedDate);
+  const weekdayLabels = Array.from({ length: 7 }, (_, index) => weekdayNarrow.format(addDays(gridStart, index)).replace('.', ''));
+
+  $('#agendaMonth').innerHTML = `
+    <section class="month-shell" aria-label="Calendrier mensuel ${capitalize(monthLong.format(monthStart))}">
+      <header class="month-header">
+        <div>
+          <p class="eyebrow">Vue mensuelle</p>
+          <h2>${capitalize(monthLong.format(monthStart))}</h2>
+        </div>
+        <div class="month-controls">
+          <button class="icon-button mini tap" data-month-nav="-1" aria-label="Mois précédent">${icon('chevron-left')}</button>
+          <button class="icon-button mini tap" data-month-nav="1" aria-label="Mois suivant">${icon('chevron-right')}</button>
+        </div>
+      </header>
+
+      <div class="month-weekdays" aria-hidden="true">
+        ${weekdayLabels.map((label) => `<span>${capitalize(label)}</span>`).join('')}
+      </div>
+
+      <div class="month-grid">
+        ${days.map((day) => {
+          const iso = toISO(day);
+          const events = eventsForDate(data, iso);
+          const isOutside = day.getMonth() !== monthStart.getMonth();
+          return `<button class="month-day tap ${isOutside ? 'is-outside' : ''} ${sameDay(day, new Date()) ? 'is-today' : ''} ${iso === state.selectedDate ? 'is-selected' : ''}" data-month-date="${iso}" aria-label="${capitalize(longDate.format(day))}, ${events.length} événement(s)">
+            <span class="month-day-number">${day.getDate()}</span>
+            <span class="month-event-list">
+              ${events.slice(0, 3).map((event) => `<span class="month-event-preview" style="--month-event-color:${CATEGORY_META[event.category]?.color || '#C79A5C'}"><i></i><span>${escapeHTML(event.title)}</span></span>`).join('')}
+              ${events.length > 3 ? `<small>+${events.length - 3}</small>` : ''}
+            </span>
+          </button>`;
+        }).join('')}
+      </div>
+    </section>
+
+    <section class="month-selection" aria-live="polite">
+      <header class="month-selection-header">
+        <div>
+          <p class="eyebrow">Jour sélectionné</p>
+          <h2>${capitalize(longDate.format(selected))}</h2>
+        </div>
+        <button class="round-action tap" data-open-event aria-label="Ajouter un événement le ${capitalize(longDate.format(selected))}">${icon('plus')}</button>
+      </header>
+      <div class="month-selection-events">
+        ${selectedEvents.length
+          ? selectedEvents.map((event) => eventCard(event, data)).join('')
+          : `<div class="empty-state"><strong>Cette journée est libre.</strong><p>Ajoutez votre premier rendez-vous pour Nacer, Romane ou Chacha.</p><button class="primary-button tap" data-open-event>${icon('plus')}Planifier cette journée</button></div>`}
+      </div>
+    </section>`;
+}
+
+function moveMonth(direction) {
+  const current = parseISO(state.selectedDate);
+  const target = new Date(current.getFullYear(), current.getMonth() + direction, 1);
+  state.selectedDate = toISO(target);
+  state.weekAnchor = startOfWeek(target);
+  render();
 }
 
 function renderFamily(data) {
@@ -187,8 +281,8 @@ function renderFamily(data) {
     const weekMinutes = data.events.filter((event) => event.memberIds.includes(member.id) && parseISO(event.date) >= weekStart && parseISO(event.date) < weekEnd).reduce((sum, event) => sum + event.duration, 0);
     const load = Math.min(100, Math.round((weekMinutes / (14 * 60)) * 100));
     return `<article class="family-card">
-      <div class="family-card-head"><div class="family-identity"><span class="avatar" style="--avatar:${member.color}">${member.initials}</span><div><strong>${escapeHTML(member.name)}</strong><span>${escapeHTML(member.role)}</span></div></div><span class="load-pill">${load < 45 ? 'Léger' : load < 75 ? 'Équilibré' : 'Chargé'}</span></div>
-      <div class="family-load"><div class="load-copy"><span>Rythme de la semaine</span><strong>${load}%</strong></div><div class="load-track"><span style="width:${Math.max(8, load)}%;--member-color:${member.color}"></span></div></div>
+      <div class="family-card-head"><div class="family-identity"><span class="avatar" style="--avatar:${member.color}">${member.initials}</span><div><strong>${escapeHTML(member.name)}</strong><span>${escapeHTML(member.role)}</span></div></div><span class="load-pill">${load === 0 ? 'Libre' : load < 45 ? 'Léger' : load < 75 ? 'Équilibré' : 'Chargé'}</span></div>
+      <div class="family-load"><div class="load-copy"><span>Rythme de la semaine</span><strong>${load}%</strong></div><div class="load-track"><span style="width:${load === 0 ? 0 : Math.max(8, load)}%;--member-color:${member.color}"></span></div></div>
       <div class="family-next"><div><span>Prochain moment</span><strong>${upcoming ? escapeHTML(upcoming.title) : 'Rien de prévu'}</strong></div><time>${upcoming ? `${capitalize(shortWeekday.format(parseISO(upcoming.date)).replace('.',''))} ${upcoming.time}` : '—'}</time></div>
     </article>`;
   }).join('');
@@ -352,10 +446,15 @@ function setupEvents() {
     const modeButton = event.target.closest('[data-agenda-mode]');
     if (modeButton) {
       state.agendaMode = modeButton.dataset.agendaMode;
-      $$('[data-agenda-mode]').forEach((button) => button.classList.toggle('is-active', button === modeButton));
-      $('#agendaFlow').hidden = state.agendaMode !== 'flow';
-      $('#agendaWeek').hidden = state.agendaMode !== 'week';
+      renderAgenda(store.getState());
+      vibration();
     }
+
+    const monthDateButton = event.target.closest('[data-month-date]');
+    if (monthDateButton) selectDate(monthDateButton.dataset.monthDate);
+
+    const monthNavButton = event.target.closest('[data-month-nav]');
+    if (monthNavButton) moveMonth(Number(monthNavButton.dataset.monthNav));
   });
 
   $('#previousWeek').addEventListener('click', () => moveWeek(-1));
@@ -369,7 +468,7 @@ function setupEvents() {
   $('#notificationButton').addEventListener('click', () => showToast('Tout est calme. Aucune urgence familiale.'));
   $('#addMemberButton').addEventListener('click', copyFamilyLink);
   $('#copyFamilyCodeButton').addEventListener('click', copyFamilyLink);
-  $('#resetButton').addEventListener('click', () => { if (confirm('Réinitialiser toutes les données locales ?')) { store.reset(); state.selectedDate = toISO(new Date()); showToast('AGENDA a retrouvé ses données de démonstration.'); } });
+  $('#resetButton').addEventListener('click', () => { if (confirm('Supprimer tous les événements et restaurer uniquement Nacer, Romane et Chacha ?')) { store.reset(); state.activeMember = 'all'; state.selectedDate = toISO(new Date()); state.weekAnchor = startOfWeek(new Date()); showToast('L’agenda familial est maintenant vide.'); } });
   $('#installButton').addEventListener('click', installApp);
   $('#eventDialog').addEventListener('click', (event) => { if (event.target === $('#eventDialog')) closeEventDialog(); });
   window.addEventListener('online', () => { updateConnection(); store.connectRemote(); });

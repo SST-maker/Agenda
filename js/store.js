@@ -1,6 +1,7 @@
-const STORAGE_KEY = 'agenda-family-v1';
+const STORAGE_KEY = 'agenda-family-v2';
 const FAMILY_KEY = 'agenda-family-code';
 const CHANNEL_NAME = 'agenda-family-sync';
+const DATA_VERSION = 2;
 
 const uid = () => {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -29,36 +30,39 @@ const addDays = (date, days) => {
   return copy;
 };
 
+/**
+ * État initial volontairement vierge : Nacer, Romane et Chacha peuvent
+ * construire leur propre organisation sans aucun événement de démonstration.
+ */
 function createSeed() {
-  const today = new Date();
-  const date = (offset) => toISO(addDays(today, offset));
-
   return {
-    version: 1,
+    version: DATA_VERSION,
     settings: { quietMode: false },
     members: [
-      { id: 'nora', name: 'Nora', role: 'Parent', initials: 'NO', color: '#224A54' },
-      { id: 'adam', name: 'Adam', role: 'Parent', initials: 'AD', color: '#8B5E3C' },
-      { id: 'lina', name: 'Lina', role: 'Enfant', initials: 'LI', color: '#A77887' },
-      { id: 'yanis', name: 'Yanis', role: 'Enfant', initials: 'YA', color: '#739A87' }
+      { id: 'nacer', name: 'Nacer', role: 'Papa', initials: 'NA', color: '#224A54' },
+      { id: 'romane', name: 'Romane', role: 'Maman', initials: 'RO', color: '#C79A5C' },
+      { id: 'chacha', name: 'Chacha', role: 'Enfant', initials: 'CH', color: '#739A87' }
     ],
-    events: [
-      { id: uid(), title: 'Petit-déjeuner tous ensemble', date: date(0), time: '07:30', duration: 45, memberIds: ['nora','adam','lina','yanis'], category: 'family', location: 'À la maison', notes: '' },
-      { id: uid(), title: 'Rendez-vous pédiatre', date: date(0), time: '10:15', duration: 45, memberIds: ['nora','yanis'], category: 'health', location: 'Cabinet du Dr Martin', notes: 'Prendre le carnet de santé.' },
-      { id: uid(), title: 'Déjeuner avec Mamie', date: date(0), time: '12:30', duration: 90, memberIds: ['lina','yanis'], category: 'family', location: 'Chez Mamie', notes: '' },
-      { id: uid(), title: 'Cours de natation', date: date(0), time: '17:15', duration: 60, memberIds: ['lina'], category: 'sport', location: 'Piscine municipale', notes: '' },
-      { id: uid(), title: 'Dîner sans écrans', date: date(0), time: '19:45', duration: 75, memberIds: ['nora','adam','lina','yanis'], category: 'family', location: 'À la maison', notes: '' },
-      { id: uid(), title: 'Présentation projet', date: date(1), time: '09:00', duration: 60, memberIds: ['adam'], category: 'work', location: 'Bureau', notes: '' },
-      { id: uid(), title: 'Sortie bibliothèque', date: date(1), time: '14:00', duration: 90, memberIds: ['nora','lina','yanis'], category: 'school', location: 'Médiathèque', notes: '' },
-      { id: uid(), title: 'Dîner tous ensemble', date: date(1), time: '19:30', duration: 90, memberIds: ['nora','adam','lina','yanis'], category: 'family', location: 'À la maison', notes: '' },
-      { id: uid(), title: 'Télétravail', date: date(2), time: '08:30', duration: 420, memberIds: ['nora'], category: 'work', location: 'Maison', notes: '' },
-      { id: uid(), title: 'Foot avec les copains', date: date(2), time: '17:30', duration: 75, memberIds: ['yanis'], category: 'sport', location: 'Stade', notes: '' },
-      { id: uid(), title: 'Marché du samedi', date: date(3), time: '09:30', duration: 90, memberIds: ['adam','lina'], category: 'home', location: 'Centre-ville', notes: '' },
-      { id: uid(), title: 'Cinéma en famille', date: date(3), time: '16:00', duration: 120, memberIds: ['nora','adam','lina','yanis'], category: 'family', location: 'Cinéma', notes: '' },
-      { id: uid(), title: 'Brunch tranquille', date: date(4), time: '11:00', duration: 120, memberIds: ['nora','adam','lina','yanis'], category: 'family', location: 'Maison', notes: '' },
-      { id: uid(), title: 'Réunion parents-profs', date: date(6), time: '18:00', duration: 60, memberIds: ['nora','adam','lina'], category: 'school', location: 'Collège', notes: '' },
-      { id: uid(), title: 'Contrôle orthodontiste', date: date(-1), time: '16:30', duration: 45, memberIds: ['adam','lina'], category: 'health', location: 'Centre médical', notes: '' }
-    ]
+    events: []
+  };
+}
+
+function normalizeState(candidate) {
+  const seed = createSeed();
+
+  // Toute ancienne version contenait les données de démonstration : on repart
+  // donc volontairement sur le nouvel agenda familial vide.
+  if (!candidate || candidate.version !== DATA_VERSION) return seed;
+
+  return {
+    version: DATA_VERSION,
+    settings: {
+      quietMode: Boolean(candidate.settings?.quietMode)
+    },
+    members: Array.isArray(candidate.members) && candidate.members.length
+      ? candidate.members
+      : seed.members,
+    events: Array.isArray(candidate.events) ? candidate.events : []
   };
 }
 
@@ -120,7 +124,9 @@ class AgendaStore extends EventTarget {
         this.safeStorageSet(this.storageKey, JSON.stringify(seed));
         return seed;
       }
-      return JSON.parse(raw);
+      const normalized = normalizeState(JSON.parse(raw));
+      this.safeStorageSet(this.storageKey, JSON.stringify(normalized));
+      return normalized;
     } catch (error) {
       console.warn('Données locales illisibles, réinitialisation.', error);
       return createSeed();
@@ -193,8 +199,13 @@ class AgendaStore extends EventTarget {
     if (!response.ok) throw new Error(`Synchronisation impossible (${response.status})`);
     const payload = await response.json();
     if (!payload.state || !Array.isArray(payload.state.members) || !Array.isArray(payload.state.events)) return;
-    this.state = payload.state;
+
+    const needsMigration = payload.state.version !== DATA_VERSION;
+    this.state = normalizeState(payload.state);
     this.save('remote-update', { pushRemote: false });
+
+    // Remplace aussi sur le serveur une éventuelle ancienne famille de démonstration.
+    if (needsMigration) await this.pushRemote();
   }
 
   scheduleRemotePush() {

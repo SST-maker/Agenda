@@ -1,7 +1,7 @@
 # AGENDA — PWA familiale premium
 
 ## Vision
-AGENDA transforme le calendrier partagé en expérience vivante : dashboard quotidien, timeline verticale, navigation gestuelle, filtres par membre, panorama hebdomadaire ondulant et espace « respiration ».
+AGENDA transforme le calendrier partagé en expérience vivante : dashboard quotidien, timeline verticale, navigation gestuelle, filtres par membre, panorama hebdomadaire ondulant, calendrier mensuel interactif et espace « respiration ».
 
 ## Charte extraite du pack logo
 - Bleu pétrole : `#224A54`
@@ -16,7 +16,8 @@ Le symbole arbre-cœur devient le fil conducteur de l’interface : lien familia
 - Dashboard mobile-first, tablette et desktop.
 - Vue globale ou filtrée par membre.
 - Timeline journalière avec geste gauche/droite entre les jours.
-- Vue agenda en flux et vue semaine « wave ».
+- Vue agenda en flux, vue semaine « wave » et vue mensuelle complète.
+- Agenda initial vierge pour Nacer (Papa), Romane (Maman) et Chacha (Enfant).
 - Création et suppression d’événements.
 - Persistance locale immédiate avec `localStorage`.
 - Synchronisation entre onglets avec `BroadcastChannel`.
