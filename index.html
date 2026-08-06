@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=3.1.0">
+  <link rel="stylesheet" href="styles.css?v=3.2.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -39,6 +39,7 @@
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 7h3l1.7-2h6.6L17 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="4"/></symbol>
     <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M15 8l2 2M17 6l2 2"/></symbol>
     <symbol id="i-log-out" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M15 3h5a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-5"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
@@ -172,8 +173,27 @@
               <div class="pulse-copy"><strong id="heroEventCount">0 rendez-vous</strong><span>planifiés aujourd’hui</span></div>
               <div class="pulse-meter" aria-label="Charge de la journée"><span id="pulseMeterFill"></span></div>
             </div>
+            <div class="hero-glance">
+              <span class="hero-chip" id="heroNextMoment">Aucun prochain rendez-vous</span>
+              <span class="hero-chip subtle" id="heroFilterHint">Vue famille active</span>
+            </div>
           </div>
           <img src="assets/brand/logo-symbol-light.svg" alt="" class="hero-tree">
+        </section>
+
+        <section class="quick-actions reveal" aria-label="Actions rapides">
+          <button class="quick-action-card tap" data-open-event>
+            <span class="quick-action-icon"><svg><use href="#i-plus"></use></svg></span>
+            <div><strong>Ajouter</strong><small>Créer un nouveau moment</small></div>
+          </button>
+          <button class="quick-action-card tap" data-view="agenda" data-force-mode="month">
+            <span class="quick-action-icon"><svg><use href="#i-calendar"></use></svg></span>
+            <div><strong>Vue mois</strong><small>Voir tout le calendrier</small></div>
+          </button>
+          <button class="quick-action-card tap" id="quickProfileButton">
+            <span class="quick-action-icon"><svg><use href="#i-user"></use></svg></span>
+            <div><strong>Mon profil</strong><small>Photo et partage</small></div>
+          </button>
         </section>
 
         <section class="section-block reveal" aria-labelledby="memberFilterTitle">
@@ -359,6 +379,17 @@
         <div><strong id="accountName">Nacer</strong><span id="accountEmail"></span></div>
         <span class="account-role" id="accountRole">Administrateur</span>
       </div>
+      <section class="profile-photo-panel">
+        <div class="profile-photo-copy">
+          <strong>Photo de profil</strong>
+          <p id="profilePhotoHint">Ajoute une photo carrée ou portrait : elle sera recadrée automatiquement et visible dans toute la famille.</p>
+        </div>
+        <div class="profile-photo-actions">
+          <label class="secondary-button tap file-picker-button" for="profilePhotoInput"><svg><use href="#i-camera"></use></svg>Choisir une photo</label>
+          <button class="danger-text-button tap" id="removeProfilePhotoButton" type="button"><svg><use href="#i-trash"></use></svg>Retirer</button>
+        </div>
+        <input id="profilePhotoInput" type="file" accept="image/*" hidden>
+      </section>
       <div class="account-actions">
         <button class="account-action tap" id="inviteButton" type="button"><span><svg><use href="#i-users"></use></svg></span><div><strong>Inviter Romane</strong><small>Génère un lien privé valable 72 heures.</small></div><svg><use href="#i-chevron-right"></use></svg></button>
         <button class="account-action tap" id="exportButton" type="button"><span><svg><use href="#i-database"></use></svg></span><div><strong>Exporter une sauvegarde</strong><small>Télécharge tous les rendez-vous en JSON.</small></div><svg><use href="#i-download"></use></svg></button>
@@ -374,6 +405,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=3.1.0"></script>
+  <script type="module" src="js/app.js?v=3.2.0"></script>
 </body>
 </html>

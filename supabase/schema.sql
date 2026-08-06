@@ -9,6 +9,7 @@ create extension if not exists pgcrypto with schema extensions;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null check (char_length(display_name) between 2 and 60),
+  avatar_url text check (avatar_url is null or char_length(avatar_url) <= 500000),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -40,6 +41,7 @@ create table if not exists public.members (
   role_label text not null check (char_length(role_label) between 1 and 40),
   initials text not null check (char_length(initials) between 1 and 4),
   color text not null check (color ~ '^#[0-9A-Fa-f]{6}$'),
+  avatar_url text check (avatar_url is null or char_length(avatar_url) <= 500000),
   linked_user_id uuid references auth.users(id) on delete set null,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
@@ -258,6 +260,36 @@ begin
 end;
 $$;
 
+create or replace function public.update_my_avatar(p_avatar_url text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_family_id uuid := public.current_family_id();
+  v_avatar text := case when p_avatar_url is null or length(trim(p_avatar_url)) = 0 then null else trim(p_avatar_url) end;
+begin
+  if v_user_id is null then
+    raise exception 'Authentification requise.';
+  end if;
+
+  update public.profiles
+  set avatar_url = v_avatar,
+      updated_at = now()
+  where id = v_user_id;
+
+  update public.members
+  set avatar_url = v_avatar,
+      updated_at = now()
+  where family_id = v_family_id
+    and linked_user_id = v_user_id;
+
+  return jsonb_build_object('updated', true);
+end;
+$$;
+
 create or replace function public.rotate_family_invite()
 returns text
 language plpgsql
@@ -290,6 +322,7 @@ revoke all on function public.is_family_admin(uuid) from public;
 revoke all on function public.create_agenda_family(text) from public;
 revoke all on function public.join_agenda_family(text, text) from public;
 revoke all on function public.rotate_family_invite() from public;
+revoke all on function public.update_my_avatar(text) from public;
 
 grant execute on function public.current_family_id() to authenticated;
 grant execute on function public.is_family_member(uuid) to authenticated;
@@ -297,6 +330,7 @@ grant execute on function public.is_family_admin(uuid) to authenticated;
 grant execute on function public.create_agenda_family(text) to authenticated;
 grant execute on function public.join_agenda_family(text, text) to authenticated;
 grant execute on function public.rotate_family_invite() to authenticated;
+grant execute on function public.update_my_avatar(text) to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.families enable row level security;

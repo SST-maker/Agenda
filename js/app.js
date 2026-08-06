@@ -1,4 +1,4 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.1.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.2.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -51,6 +51,28 @@ function formatDuration(minutes) {
   return rest ? `${hours} h ${rest}` : `${hours} h`;
 }
 function vibration() { navigator.vibrate?.(8); }
+function escapeHTML(value = '') {
+  return String(value).replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
+}
+function initialsFor(value = '') {
+  return String(value).trim().split(/\s+/).slice(0, 2).map((word) => word[0] || '').join('').toUpperCase() || 'FA';
+}
+function renderAvatar(entity, { className = 'avatar', title = '', fallback = '' } = {}) {
+  if (!entity) return `<span class="${className}">${escapeHTML(fallback || '??')}</span>`;
+  const label = entity.name || entity.displayName || '';
+  const attrTitle = title || label ? ` title="${escapeHTML(title || label)}"` : '';
+  const style = entity.color ? ` style="--avatar:${entity.color}"` : '';
+  const initials = entity.initials || initialsFor(label);
+  if (entity.avatarUrl) return `<span class="${className} has-photo"${style}${attrTitle}><img src="${escapeHTML(entity.avatarUrl)}" alt="${escapeHTML(label ? `Photo de ${label}` : 'Photo de profil')}"></span>`;
+  return `<span class="${className}"${style}${attrTitle}>${escapeHTML(initials)}</span>`;
+}
+function nextUpcomingEvent(data, memberId = state.activeMember) {
+  const now = new Date();
+  return filteredEvents(data, memberId)
+    .map((event) => ({ ...event, startsAt: new Date(`${event.date}T${event.time}:00`) }))
+    .filter((event) => event.startsAt >= now)
+    .sort((a, b) => a.startsAt - b.startsAt)[0] || null;
+}
 function filteredEvents(data, memberId = state.activeMember) {
   return data.events.filter((event) => memberId === 'all' || event.memberIds.includes(memberId));
 }
@@ -88,6 +110,10 @@ function renderHeader(data) {
   const count = eventsForDate(data, toISO(today), 'all').length;
   $('#heroEventCount').textContent = `${count} rendez-vous`;
   $('#pulseMeterFill').style.width = `${count === 0 ? 0 : Math.min(96, Math.max(18, count * 16))}%`;
+  const nextEvent = nextUpcomingEvent(data);
+  $('#heroNextMoment').textContent = nextEvent ? `Prochain : ${nextEvent.title} · ${nextEvent.time}` : 'Aucun prochain rendez-vous';
+  const member = state.activeMember === 'all' ? null : memberById(data, state.activeMember);
+  $('#heroFilterHint').textContent = member ? `Filtre actif : ${member.name}` : 'Vue famille active';
   $('#quietModeToggle').checked = Boolean(data.settings.quietMode);
 }
 
@@ -95,7 +121,7 @@ function renderMemberFilter(data) {
   const all = `<button class="member-chip ${state.activeMember === 'all' ? 'is-active' : ''} tap" data-member="all" role="option" aria-selected="${state.activeMember === 'all'}"><span class="avatar all">∞</span>Toute la famille</button>`;
   const members = data.members.map((member) => `
     <button class="member-chip ${state.activeMember === member.id ? 'is-active' : ''} tap" data-member="${member.id}" role="option" aria-selected="${state.activeMember === member.id}">
-      <span class="avatar" style="--avatar:${member.color}">${member.initials}</span>${member.name}
+      ${renderAvatar(member)}${member.name}
     </button>`).join('');
   $('#memberFilter').innerHTML = all + members;
 }
@@ -138,7 +164,7 @@ function eventCard(event, data) {
       <span>${category.label}</span>
       ${event.location ? `<span>${icon('map-pin')}${escapeHTML(event.location)}</span>` : ''}
     </div>
-    <div class="event-avatars">${people.map((member) => `<span class="avatar" style="--avatar:${member.color}" title="${escapeHTML(member.name)}">${member.initials}</span>`).join('')}</div>
+    <div class="event-avatars">${people.map((member) => renderAvatar(member, { title: member.name })).join('')}</div>
   </article>`;
 }
 
@@ -160,7 +186,7 @@ function renderTimeline(data) {
 }
 
 function renderInsights(data) {
-  $('#familyStack').innerHTML = data.members.map((member) => `<span class="avatar" style="--avatar:${member.color}">${member.initials}</span>`).join('');
+  $('#familyStack').innerHTML = data.members.map((member) => renderAvatar(member)).join('');
   const occupied = eventsForDate(data, state.selectedDate, 'all').reduce((sum, event) => sum + event.duration, 0);
   const free = Math.max(0, 12 * 60 - occupied);
   $('#freeTimeValue').textContent = formatDuration(free);
@@ -300,7 +326,7 @@ function renderFamily(data) {
     const weekMinutes = data.events.filter((event) => event.memberIds.includes(member.id) && parseISO(event.date) >= weekStart && parseISO(event.date) < weekEnd).reduce((sum, event) => sum + event.duration, 0);
     const load = Math.min(100, Math.round((weekMinutes / (14 * 60)) * 100));
     return `<article class="family-card">
-      <div class="family-card-head"><div class="family-identity"><span class="avatar" style="--avatar:${member.color}">${member.initials}</span><div><strong>${escapeHTML(member.name)}</strong><span>${escapeHTML(member.role)}</span></div></div><span class="load-pill">${load === 0 ? 'Libre' : load < 45 ? 'Léger' : load < 75 ? 'Équilibré' : 'Chargé'}</span></div>
+      <div class="family-card-head"><div class="family-identity">${renderAvatar(member)}<div><strong>${escapeHTML(member.name)}</strong><span>${escapeHTML(member.role)}</span></div></div><span class="load-pill">${load === 0 ? 'Libre' : load < 45 ? 'Léger' : load < 75 ? 'Équilibré' : 'Chargé'}</span></div>
       <div class="family-load"><div class="load-copy"><span>Rythme de la semaine</span><strong>${load}%</strong></div><div class="load-track"><span style="width:${load === 0 ? 0 : Math.max(8, load)}%;--member-color:${member.color}"></span></div></div>
       <div class="family-next"><div><span>Prochain moment</span><strong>${upcoming ? escapeHTML(upcoming.title) : 'Rien de prévu'}</strong></div><time>${upcoming ? `${capitalize(shortWeekday.format(parseISO(upcoming.date)).replace('.',''))} ${upcoming.time}` : '—'}</time></div>
     </article>`;
@@ -321,7 +347,7 @@ function renderFocus(data) {
 }
 
 function renderDialogMembers(data) {
-  $('#dialogMemberPicker').innerHTML = data.members.map((member, index) => `<label class="member-check"><input type="checkbox" name="memberIds" value="${member.id}" ${index === 0 ? 'checked' : ''}><span><i class="avatar" style="--avatar:${member.color}">${member.initials}</i>${escapeHTML(member.name)}</span></label>`).join('');
+  $('#dialogMemberPicker').innerHTML = data.members.map((member, index) => `<label class="member-check"><input type="checkbox" name="memberIds" value="${member.id}" ${index === 0 ? 'checked' : ''}><span>${renderAvatar(member, { className: 'avatar' })}${escapeHTML(member.name)}</span></label>`).join('');
 }
 
 function switchView(view) {
@@ -445,23 +471,30 @@ function updateConnection() {
     : pending ? 'Synchronisation…' : remote ? 'Partagé en direct' : 'Connexion…';
 }
 
-function escapeHTML(value = '') {
-  return String(value).replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
-}
-
-function initialsFor(value = '') {
-  return String(value).trim().split(/\s+/).slice(0, 2).map((word) => word[0] || '').join('').toUpperCase() || 'FA';
+function applyAvatarToElement(element, entity) {
+  element.classList.toggle('has-photo', Boolean(entity?.avatarUrl));
+  if (entity?.avatarUrl) element.innerHTML = `<img src="${escapeHTML(entity.avatarUrl)}" alt="${escapeHTML(entity.displayName || entity.name || 'Photo de profil')}">`;
+  else element.textContent = entity?.initials || initialsFor(entity?.displayName || entity?.name || 'FA');
 }
 
 function renderAccount() {
   const user = store.getCurrentUser();
   if (!user) return;
-  $('#accountAvatar').textContent = initialsFor(user.displayName);
+  applyAvatarToElement($('#accountAvatar'), { ...user, initials: initialsFor(user.displayName), color: '#224A54' });
   $('#accountName').textContent = user.displayName;
   $('#accountEmail').textContent = user.email || '';
   $('#accountRole').textContent = user.role === 'admin' ? 'Administrateur' : 'Membre';
+  $('#profilePhotoHint').textContent = user.avatarUrl
+    ? 'Ta photo est visible dans les filtres, les cartes famille et le compte.'
+    : 'Ajoute une photo carrée ou portrait : elle sera recadrée automatiquement et visible dans toute la famille.';
+  $('#removeProfilePhotoButton').hidden = !user.avatarUrl;
   $('#inviteButton').hidden = user.role !== 'admin';
   $('#exportButton').hidden = false;
+  const accountButton = $('#accountButton');
+  accountButton.classList.toggle('with-avatar', Boolean(user.avatarUrl));
+  accountButton.innerHTML = user.avatarUrl
+    ? `<span class="topbar-avatar has-photo"><img src="${escapeHTML(user.avatarUrl)}" alt="${escapeHTML(user.displayName)}"></span>`
+    : icon('user');
 }
 
 function openAccountDialog() {
@@ -496,6 +529,81 @@ async function copyInviteLink() {
     showToast('Lien d’invitation copié.');
   } catch {
     window.prompt('Copie ce lien :', value);
+  }
+}
+
+function setProfilePhotoBusy(busy) {
+  $('#removeProfilePhotoButton').disabled = busy;
+  const picker = $('#profilePhotoInput');
+  picker.disabled = busy;
+  const label = document.querySelector('label[for="profilePhotoInput"]');
+  if (label) label.classList.toggle('is-busy', busy);
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Lecture du fichier impossible.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Image invalide.'));
+    image.src = src;
+  });
+}
+
+async function optimizeProfilePhoto(file) {
+  if (!file || !file.type.startsWith('image/')) throw new Error('Choisis une image valide.');
+  const source = await fileToDataUrl(file);
+  const image = await loadImage(source);
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  const sourceSize = Math.min(image.width, image.height);
+  const sourceX = (image.width - sourceSize) / 2;
+  const sourceY = (image.height - sourceSize) / 2;
+  context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+  return canvas.toDataURL('image/jpeg', 0.84);
+}
+
+async function handleProfilePhotoSelection(event) {
+  const file = event.currentTarget.files?.[0];
+  if (!file) return;
+  setProfilePhotoBusy(true);
+  try {
+    const optimized = await optimizeProfilePhoto(file);
+    await store.updateProfilePhoto(optimized);
+    render();
+    renderAccount();
+    showToast('Photo de profil mise à jour.');
+  } catch (error) {
+    showToast(error.message || 'Impossible de mettre à jour la photo.');
+  } finally {
+    event.currentTarget.value = '';
+    setProfilePhotoBusy(false);
+  }
+}
+
+async function removeProfilePhoto() {
+  if (!confirm('Retirer la photo de profil ?')) return;
+  setProfilePhotoBusy(true);
+  try {
+    await store.updateProfilePhoto(null);
+    render();
+    renderAccount();
+    showToast('Photo de profil retirée.');
+  } catch (error) {
+    showToast(error.message || 'Impossible de retirer la photo.');
+  } finally {
+    setProfilePhotoBusy(false);
   }
 }
 
@@ -649,7 +757,11 @@ function setupSwipe() {
 function setupEvents() {
   document.addEventListener('click', (event) => {
     const viewButton = event.target.closest('[data-view]');
-    if (viewButton) switchView(viewButton.dataset.view);
+    if (viewButton) {
+      if (viewButton.dataset.forceMode) state.agendaMode = viewButton.dataset.forceMode;
+      switchView(viewButton.dataset.view);
+      if (viewButton.dataset.forceMode) renderAgenda(store.getState());
+    }
 
     const memberButton = event.target.closest('[data-member]');
     if (memberButton) { state.activeMember = memberButton.dataset.member; render(); vibration(); }
@@ -691,10 +803,13 @@ function setupEvents() {
   $('#quietModeToggle').addEventListener('change', (event) => { store.setSetting('quietMode', event.target.checked); showToast(event.target.checked ? 'Mode doux activé.' : 'Mode doux désactivé.'); });
   $('#protectMomentButton').addEventListener('click', () => { openEventDialog(); $('#eventForm').elements.title.value = 'Temps pour soi'; });
   $('#accountButton').addEventListener('click', openAccountDialog);
+  $('#quickProfileButton').addEventListener('click', openAccountDialog);
   $('#addMemberButton').addEventListener('click', openAccountDialog);
   $('#manageAccessButton').addEventListener('click', openAccountDialog);
   $('#inviteButton').addEventListener('click', createInvitation);
   $('#copyInviteButton').addEventListener('click', copyInviteLink);
+  $('#profilePhotoInput').addEventListener('change', handleProfilePhotoSelection);
+  $('#removeProfilePhotoButton').addEventListener('click', removeProfilePhoto);
   $('#exportButton').addEventListener('click', () => { store.exportData(); showToast('Sauvegarde téléchargée.'); });
   $('#logoutButton').addEventListener('click', async () => { closeAccountDialog(); await store.logout(); applyAuthUI(); });
   $('#resetButton').addEventListener('click', () => {

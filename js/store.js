@@ -1,11 +1,11 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js';
 
-const STORAGE_KEY = 'agenda-family-supabase-state-v1';
-const QUEUE_KEY = 'agenda-family-supabase-queue-v1';
-const PENDING_ONBOARDING_KEY = 'agenda-family-supabase-onboarding-v1';
+const STORAGE_KEY = 'agenda-family-supabase-state-v2';
+const QUEUE_KEY = 'agenda-family-supabase-queue-v2';
+const PENDING_ONBOARDING_KEY = 'agenda-family-supabase-onboarding-v2';
 const CHANNEL_NAME = 'agenda-family-supabase-tabs';
-const DATA_VERSION = 1;
+const DATA_VERSION = 2;
 
 const uid = () => globalThis.crypto?.randomUUID?.() || `evt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -37,9 +37,9 @@ function createSeed() {
     family: { id: null, name: 'Famille Nacer & Romane' },
     settings: { quietMode: false },
     members: [
-      { id: 'local-nacer', name: 'Nacer', role: 'Papa', initials: 'NA', color: '#224A54' },
-      { id: 'local-romane', name: 'Romane', role: 'Maman', initials: 'RO', color: '#C79A5C' },
-      { id: 'local-chacha', name: 'Chacha', role: 'Enfant', initials: 'CH', color: '#739A87' }
+      { id: 'local-nacer', name: 'Nacer', role: 'Papa', initials: 'NA', color: '#224A54', avatarUrl: null },
+      { id: 'local-romane', name: 'Romane', role: 'Maman', initials: 'RO', color: '#C79A5C', avatarUrl: null },
+      { id: 'local-chacha', name: 'Chacha', role: 'Enfant', initials: 'CH', color: '#739A87', avatarUrl: null }
     ],
     events: [],
     syncedAt: null
@@ -81,6 +81,7 @@ function mapMember(row) {
     role: row.role_label,
     initials: row.initials,
     color: row.color,
+    avatarUrl: row.avatar_url || null,
     linkedUserId: row.linked_user_id,
     sortOrder: row.sort_order
   };
@@ -400,7 +401,7 @@ class AgendaStore extends EventTarget {
 
     const userId = this.session.user.id;
     const [profileResult, membershipResult] = await Promise.all([
-      this.supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+      this.supabase.from('profiles').select('display_name, avatar_url').eq('id', userId).maybeSingle(),
       this.supabase.from('family_users').select('family_id, role').eq('user_id', userId).maybeSingle()
     ]);
     if (profileResult.error) throw profileResult.error;
@@ -413,6 +414,7 @@ class AgendaStore extends EventTarget {
         id: userId,
         email: this.session.user.email,
         displayName: profileResult.data?.display_name || this.currentUser?.displayName || 'Membre',
+        avatarUrl: profileResult.data?.avatar_url || null,
         role: 'member'
       };
       return;
@@ -431,6 +433,7 @@ class AgendaStore extends EventTarget {
       id: userId,
       email: this.session.user.email,
       displayName: profileResult.data?.display_name || this.currentUser?.displayName || 'Membre',
+      avatarUrl: profileResult.data?.avatar_url || null,
       role: membershipResult.data.role
     };
     this.safeSet('sb-offline-session-seen', JSON.stringify(this.currentUser));
@@ -524,6 +527,16 @@ class AgendaStore extends EventTarget {
       link: `${appBaseUrl()}?join=${encodeURIComponent(code)}`,
       expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString()
     };
+  }
+
+  async updateProfilePhoto(avatarUrl) {
+    if (!this.supabase || !this.session?.user?.id) throw new Error('Session indisponible.');
+    if (!navigator.onLine) throw new Error('Une connexion Internet est nécessaire pour changer la photo.');
+    const normalized = avatarUrl || null;
+    const { error } = await this.supabase.rpc('update_my_avatar', { p_avatar_url: normalized });
+    if (error) throw error;
+    await this.pullRemote();
+    this.emit('profile-updated');
   }
 
   exportData() {

@@ -48,3 +48,11 @@ Puis ouvrir `http://localhost:8080`. Pour une connexion réelle, renseigner temp
 ## Sécurité importante
 
 La clé présente dans le navigateur doit être uniquement la **Publishable key** ou l’ancienne clé **anon**. Ne jamais utiliser la clé `service_role` ni une Secret key dans `js/config.js`, GitHub Pages ou les variables de déploiement.
+
+
+## Nouveautés v3.2
+- photo de profil pour chaque utilisateur connecté ;
+- avatars visibles dans les filtres, cartes famille, événements et compte ;
+- actions rapides sur l’accueil ;
+- interface raffinée et plus lisible ;
+- migration Supabase dédiée pour les projets déjà en production : `supabase/upgrade_v3_2_profile_photos.sql`.

@@ -114,3 +114,7 @@ Chrome → menu → **Installer l’application** ou **Ajouter à l’écran d�
 - Couper Internet, créer un rendez-vous, remettre Internet et vérifier la synchronisation.
 - Tester les vues Flux, Semaine et Mois.
 - Télécharger une sauvegarde JSON depuis le compte.
+
+
+## Mise à jour depuis une version déjà en ligne
+Si ton agenda fonctionne déjà, exécute simplement `supabase/upgrade_v3_2_profile_photos.sql` dans Supabase, puis remplace les fichiers du dépôt GitHub par cette version et valide un nouveau commit.

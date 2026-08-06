@@ -20,3 +20,7 @@ where pubname = 'supabase_realtime'
   and schemaname = 'public'
   and tablename in ('families', 'members', 'events')
 order by tablename;
+
+select column_name from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'avatar_url';
+select column_name from information_schema.columns where table_schema = 'public' and table_name = 'members' and column_name = 'avatar_url';
+select routine_name from information_schema.routines where routine_schema = 'public' and routine_name = 'update_my_avatar';
