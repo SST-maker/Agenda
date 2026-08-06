@@ -2,7 +2,7 @@ AGENDA v3 — SUPABASE + GITHUB PAGES
 
 1. Créer le projet Supabase.
 2. Exécuter supabase/schema.sql.
-3. Mettre les fichiers dans un dépôt GitHub.
+3. Mettre les fichiers dans un dépôt GitHub. 
 4. Ajouter SUPABASE_URL et SUPABASE_PUBLISHABLE_KEY aux variables Actions.
 5. Activer Pages avec la source GitHub Actions. 
 6. Autoriser l’URL GitHub Pages dans Supabase Auth.
