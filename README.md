@@ -1,5 +1,10 @@
 # AGENDA familial — Supabase + GitHub Pages
 
+
+## Correctif v3.1
+
+Cette version corrige le cache de `js/config.js`. La configuration Supabase est désormais chargée en priorité depuis le réseau après chaque déploiement. Le workflow accepte les valeurs GitHub enregistrées comme **Repository variables** ou comme **Repository secrets**.
+
 Version **3.0.0** prête à être publiée comme PWA statique.
 
 ## Architecture

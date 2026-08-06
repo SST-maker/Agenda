@@ -1,12 +1,11 @@
-const CACHE_NAME = 'agenda-shell-v3.0.0';
+const CACHE_NAME = 'agenda-shell-v3.1.0';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=3.0.0',
+  './styles.css?v=3.1.0',
   './manifest.json',
-  './js/app.js?v=3.0.0',
-  './js/store.js?v=3.0.0',
-  './js/config.js',
+  './js/app.js?v=3.1.0',
+  './js/store.js?v=3.1.0',
   './assets/brand/logo-horizontal.svg',
   './assets/brand/logo-symbol.svg',
   './assets/brand/logo-symbol-light.svg',
@@ -41,6 +40,20 @@ self.addEventListener('fetch', (event) => {
 
   // Les appels Supabase contiennent des données privées : jamais de cache.
   if (url.hostname.endsWith('.supabase.co')) return;
+
+  // Le fichier de configuration est généré à chaque déploiement.
+  // Réseau en priorité afin qu’une nouvelle URL/clé Supabase remplace immédiatement l’ancienne.
+  if (url.origin === self.location.origin && url.pathname.endsWith('/js/config.js')) {
+    event.respondWith(
+      fetch(new Request(event.request, { cache: 'no-store' }))
+        .then((response) => {
+          if (response?.ok) caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
 
   // SDK Supabase : cache-first pour permettre le redémarrage hors ligne.
   if (url.href.startsWith('https://cdn.jsdelivr.net/npm/@supabase/supabase-js')) {

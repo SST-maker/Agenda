@@ -1,4 +1,4 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.0.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.1.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -789,7 +789,20 @@ function setupPWA() {
     state.deferredInstallPrompt = event;
   });
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch((error) => console.warn('Service Worker non enregistré', error)));
+    let reloadingForUpdate = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloadingForUpdate) return;
+      reloadingForUpdate = true;
+      location.reload();
+    });
+    window.addEventListener('load', async () => {
+      try {
+        const registration = await navigator.serviceWorker.register('./service-worker.js');
+        await registration.update();
+      } catch (error) {
+        console.warn('Service Worker non enregistré', error);
+      }
+    });
   }
 }
 
