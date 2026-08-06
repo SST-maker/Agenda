@@ -1,5 +1,5 @@
 AGENDA v3 — SUPABASE + GITHUB PAGES
- 
+
 1. Créer le projet Supabase.
 2. Exécuter supabase/schema.sql.
 3. Mettre les fichiers dans un dépôt GitHub.
