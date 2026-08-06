@@ -9,4 +9,4 @@ AGENDA v3 — SUPABASE + GITHUB PAGES
 7. Ouvrir le site et créer le compte de Nacer.
 8. Inviter Romane depuis l’icône du compte.
 
-Voir GUIDE_MISE_EN_LIGNE.md pour chaque clic exact.
+Voir GUIDE_MISE_EN_LIGNE.md pour chaque clic exact.   
