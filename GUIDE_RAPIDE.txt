@@ -10,3 +10,4 @@ AGENDA v3 — SUPABASE + GITHUB PAGES
 8. Inviter Romane depuis l’icône du compte.
 
 Voir GUIDE_MISE_EN_LIGNE.md pour chaque clic exact.
+ 
