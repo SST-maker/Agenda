@@ -1,13 +1,15 @@
 {
-  "name": "agenda-familial-pwa",
-  "version": "1.1.0",
+  "name": "agenda-familial-supabase-github",
+  "version": "3.0.0",
   "private": true,
-  "description": "PWA premium d'agenda familial partagé, locale-first et synchronisable en temps réel.",
+  "description": "PWA privée d'agenda familial partagé, hébergée sur GitHub Pages et synchronisée avec Supabase.",
+  "type": "commonjs",
   "scripts": {
-    "start": "node server.js",
-    "check": "node --check server.js && node --check js/store.js && node --check js/app.js && node --check service-worker.js"
+    "check": "node scripts/check-project.js",
+    "build": "node scripts/build-pages.js",
+    "test": "node scripts/check-project.js && node scripts/test-store.mjs"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   }
 }

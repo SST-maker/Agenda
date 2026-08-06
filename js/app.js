@@ -1,4 +1,4 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=1.1.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.0.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -10,7 +10,8 @@ const state = {
   selectedDate: toISO(new Date()),
   weekAnchor: startOfWeek(new Date()),
   agendaMode: 'flow',
-  deferredInstallPrompt: null
+  deferredInstallPrompt: null,
+  authMode: 'login'
 };
 
 const dateFormatter = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -88,7 +89,6 @@ function renderHeader(data) {
   $('#heroEventCount').textContent = `${count} rendez-vous`;
   $('#pulseMeterFill').style.width = `${count === 0 ? 0 : Math.min(96, Math.max(18, count * 16))}%`;
   $('#quietModeToggle').checked = Boolean(data.settings.quietMode);
-  $('#familyCode').textContent = store.getFamilyId();
 }
 
 function renderMemberFilter(data) {
@@ -132,7 +132,7 @@ function eventCard(event, data) {
         <span class="event-time">${icon('clock')}${event.time} · ${formatDuration(event.duration)}</span>
         <h3>${escapeHTML(event.title)}</h3>
       </div>
-      <button class="event-menu tap" data-delete-event="${event.id}" aria-label="Supprimer ${escapeHTML(event.title)}">${icon('more')}</button>
+      <button class="event-menu tap" data-edit-event="${event.id}" aria-label="Modifier ${escapeHTML(event.title)}">${icon('more')}</button>
     </div>
     <div class="event-meta">
       <span>${category.label}</span>
@@ -274,6 +274,25 @@ function moveMonth(direction) {
 }
 
 function renderFamily(data) {
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+  let conflictCount = 0;
+  for (const member of data.members) {
+    const items = data.events
+      .filter((event) => event.memberIds.includes(member.id))
+      .map((event) => ({ start: new Date(`${event.date}T${event.time}:00`), duration: event.duration }))
+      .filter((event) => event.start >= now && event.start <= horizon)
+      .sort((a, b) => a.start - b.start);
+    for (let index = 1; index < items.length; index += 1) {
+      const previousEnd = new Date(items[index - 1].start.getTime() + items[index - 1].duration * 60000);
+      if (items[index].start < previousEnd) conflictCount += 1;
+    }
+  }
+  $('.family-pulse-card h2').textContent = conflictCount ? 'Un rythme à rééquilibrer.' : 'Tout le monde est aligné.';
+  $('#familyPulseCopy').textContent = conflictCount
+    ? `${conflictCount} chevauchement${conflictCount > 1 ? 's' : ''} à vérifier dans les prochaines 48 heures.`
+    : 'Aucun chevauchement détecté dans les prochaines 48 heures.';
+
   const weekStart = startOfWeek(new Date());
   const weekEnd = addDays(weekStart, 7);
   $('#familyCards').innerHTML = data.members.map((member) => {
@@ -327,26 +346,49 @@ function moveWeek(direction) {
   render();
 }
 
-function openEventDialog() {
+function openEventDialog(eventId = null) {
   const dialog = $('#eventDialog');
   const form = $('#eventForm');
+  const data = store.getState();
   form.reset();
+  renderDialogMembers(data);
+  form.elements.eventId.value = '';
   form.elements.date.value = state.selectedDate;
-  form.elements.time.value = new Date().toTimeString().slice(0,5);
-  renderDialogMembers(store.getState());
+  form.elements.time.value = new Date().toTimeString().slice(0, 5);
+  $('#dialogTitle').textContent = 'Ajouter à la vie de famille';
+  $('#eventSubmitButton').innerHTML = `Créer le moment ${icon('arrow-up-right')}`;
+  $('#deleteCurrentEventButton').hidden = true;
+
+  if (eventId) {
+    const item = data.events.find((event) => event.id === eventId);
+    if (!item) return;
+    form.elements.eventId.value = item.id;
+    form.elements.title.value = item.title;
+    form.elements.date.value = item.date;
+    form.elements.time.value = item.time;
+    form.elements.duration.value = String(item.duration);
+    form.elements.category.value = item.category;
+    form.elements.location.value = item.location || '';
+    form.elements.notes.value = item.notes || '';
+    form.querySelectorAll('input[name="memberIds"]').forEach((input) => { input.checked = item.memberIds.includes(input.value); });
+    $('#dialogTitle').textContent = 'Modifier ce moment';
+    $('#eventSubmitButton').innerHTML = `Enregistrer ${icon('check')}`;
+    $('#deleteCurrentEventButton').hidden = false;
+  }
+
   dialog.showModal();
   requestAnimationFrame(() => form.elements.title.focus());
   vibration();
 }
 
-function closeEventDialog() { $('#eventDialog').close(); }
+function closeEventDialog() { if ($('#eventDialog').open) $('#eventDialog').close(); }
 
 function handleEventSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
   const memberIds = form.getAll('memberIds');
   if (!memberIds.length) { showToast('Choisis au moins un membre.'); return; }
-  store.addEvent({
+  const payload = {
     title: String(form.get('title')).trim(),
     date: String(form.get('date')),
     time: String(form.get('time')),
@@ -355,21 +397,29 @@ function handleEventSubmit(event) {
     location: String(form.get('location')).trim(),
     notes: String(form.get('notes')).trim(),
     memberIds
-  });
-  state.selectedDate = String(form.get('date'));
+  };
+  const eventId = String(form.get('eventId') || '');
+  if (eventId) {
+    store.updateEvent(eventId, payload);
+    showToast(navigator.onLine ? 'Modification enregistrée.' : 'Modification gardée hors-ligne.');
+  } else {
+    store.addEvent(payload);
+    showToast(navigator.onLine ? 'Le moment a été ajouté.' : 'Moment ajouté hors-ligne.');
+  }
+  state.selectedDate = payload.date;
   state.weekAnchor = startOfWeek(parseISO(state.selectedDate));
   closeEventDialog();
-  showToast('Le moment a été ajouté à la famille.');
 }
 
-function deleteEvent(id) {
-  const data = store.getState();
-  const event = data.events.find((item) => item.id === id);
-  if (!event) return;
-  if (confirm(`Supprimer « ${event.title} » ?`)) {
-    store.deleteEvent(id);
-    showToast('Événement supprimé.');
-  }
+function deleteCurrentEvent() {
+  const form = $('#eventForm');
+  const id = form.elements.eventId.value;
+  const item = store.getState().events.find((event) => event.id === id);
+  if (!item) return;
+  if (!confirm(`Supprimer « ${item.title} » ?`)) return;
+  store.deleteEvent(id);
+  closeEventDialog();
+  showToast(navigator.onLine ? 'Événement supprimé.' : 'Suppression gardée hors-ligne.');
 }
 
 function showToast(message) {
@@ -387,27 +437,198 @@ function updateConnection() {
   const pill = $('#connectionPill');
   const online = navigator.onLine;
   const remote = store.isRemoteReady();
+  const pending = store.hasPendingChanges();
   pill.classList.toggle('is-offline', !online);
+  pill.classList.toggle('has-pending', pending && online);
   pill.querySelector('span:last-child').textContent = !online
-    ? 'Mode hors-ligne'
-    : remote ? 'Partagé en direct' : 'Sur cet appareil';
+    ? pending ? 'Hors-ligne · à synchroniser' : 'Mode hors-ligne'
+    : pending ? 'Synchronisation…' : remote ? 'Partagé en direct' : 'Connexion…';
 }
 
 function escapeHTML(value = '') {
-  return value.replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
+  return String(value).replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
 }
 
+function initialsFor(value = '') {
+  return String(value).trim().split(/\s+/).slice(0, 2).map((word) => word[0] || '').join('').toUpperCase() || 'FA';
+}
 
-async function copyFamilyLink() {
-  const code = store.getFamilyId();
-  const value = /^https?:$/.test(location.protocol)
-    ? `${location.origin}${location.pathname}?family=${encodeURIComponent(code)}`
-    : code;
+function renderAccount() {
+  const user = store.getCurrentUser();
+  if (!user) return;
+  $('#accountAvatar').textContent = initialsFor(user.displayName);
+  $('#accountName').textContent = user.displayName;
+  $('#accountEmail').textContent = user.email || '';
+  $('#accountRole').textContent = user.role === 'admin' ? 'Administrateur' : 'Membre';
+  $('#inviteButton').hidden = user.role !== 'admin';
+  $('#exportButton').hidden = false;
+}
+
+function openAccountDialog() {
+  renderAccount();
+  $('#inviteResult').hidden = true;
+  $('#accountDialog').showModal();
+  vibration();
+}
+
+function closeAccountDialog() { if ($('#accountDialog').open) $('#accountDialog').close(); }
+
+async function createInvitation() {
+  const button = $('#inviteButton');
+  button.disabled = true;
+  try {
+    const result = await store.createInvitation();
+    $('#inviteLink').value = result.link;
+    $('#inviteCode').textContent = result.token;
+    $('#inviteResult').hidden = false;
+    showToast('Invitation créée pour 72 heures.');
+  } catch (error) {
+    showToast(error.message || 'Invitation impossible.');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function copyInviteLink() {
+  const value = $('#inviteLink').value;
   try {
     await navigator.clipboard.writeText(value);
-    showToast('Lien familial copié.');
+    showToast('Lien d’invitation copié.');
   } catch {
-    window.prompt('Copie ce code familial :', code);
+    window.prompt('Copie ce lien :', value);
+  }
+}
+
+function setAuthBusy(form, busy) {
+  form.querySelectorAll('button, input').forEach((element) => { element.disabled = busy; });
+}
+
+function showAuthError(message = '') {
+  const box = $('#authError');
+  box.textContent = message;
+  box.hidden = !message;
+}
+
+function showAuthMode(mode) {
+  state.authMode = mode;
+  const panels = {
+    config: '#configPanel',
+    login: '#loginForm',
+    setup: '#setupForm',
+    invite: '#inviteForm',
+    resetRequest: '#resetRequestForm',
+    recovery: '#recoveryForm',
+    confirmation: '#confirmationPanel',
+    noFamily: '#noFamilyPanel'
+  };
+  Object.values(panels).forEach((selector) => { const panel = $(selector); if (panel) panel.hidden = true; });
+  const target = $(panels[mode] || panels.login);
+  if (target) target.hidden = false;
+  const subtitles = {
+    config: 'Connecte l’interface à ton projet Supabase avant la première utilisation.',
+    login: 'Connectez-vous pour retrouver l’agenda partagé.',
+    setup: 'Nacer crée le compte administrateur et l’agenda familial.',
+    invite: 'Romane peut créer son propre accès à la famille.',
+    resetRequest: 'Demande un lien sécurisé de réinitialisation.',
+    recovery: 'Définis maintenant ton nouveau mot de passe.',
+    confirmation: 'Une dernière vérification protège votre accès.',
+    noFamily: 'Associe ce compte à la famille avant de continuer.'
+  };
+  $('#authSubtitle').textContent = subtitles[mode] || subtitles.login;
+  showAuthError('');
+}
+
+function unlockApp() {
+  const gate = $('#authGate');
+  $('#appShell').classList.remove('is-locked');
+  $('#appShell').setAttribute('aria-hidden', 'false');
+  document.body.classList.remove('is-authenticating');
+  gate.classList.add('is-leaving');
+  setTimeout(() => { gate.hidden = true; gate.classList.remove('is-leaving'); }, 430);
+  render();
+  updateConnection();
+}
+
+function lockApp(mode = 'login') {
+  $('#appShell').classList.add('is-locked');
+  $('#appShell').setAttribute('aria-hidden', 'true');
+  const gate = $('#authGate');
+  gate.hidden = false;
+  document.body.classList.add('is-authenticating');
+  showAuthMode(mode);
+}
+
+function invitationCodeFromUrl() {
+  return new URLSearchParams(location.search).get('join') || '';
+}
+
+function applyAuthUI(detail = {}) {
+  const auth = store.getAuthStatus();
+  const joinCode = invitationCodeFromUrl();
+  const offlineWithoutAccess = !navigator.onLine && !auth.authenticated;
+  $('#authOffline').textContent = offlineWithoutAccess
+    ? 'Aucune connexion disponible. Connecte cet appareil à Internet pour ouvrir une première session.'
+    : 'Connexion indisponible. Les données déjà synchronisées restent accessibles sur cet appareil.';
+  $('#authOffline').hidden = !(offlineWithoutAccess || (auth.authenticated && auth.offlineSession));
+
+  if (!auth.configured) {
+    lockApp('config');
+    return;
+  }
+
+  if (auth.recoveryMode || new URLSearchParams(location.search).get('recovery') === '1') {
+    lockApp('recovery');
+    return;
+  }
+
+  if (auth.authenticated) {
+    if (auth.needsFamily) {
+      lockApp('noFamily');
+      return;
+    }
+    history.replaceState({}, '', location.pathname);
+    unlockApp();
+    renderAccount();
+    if (detail.expired) showToast('La session a expiré. Reconnecte-toi.');
+    return;
+  }
+
+  if (joinCode) {
+    store.stageJoin(joinCode, 'Romane');
+    $('#inviteForm').elements.token.value = joinCode;
+    lockApp('invite');
+  } else {
+    lockApp(state.authMode === 'confirmation' ? 'confirmation' : 'login');
+  }
+}
+
+async function submitAuthForm(form, action) {
+  showAuthError('');
+  const data = new FormData(form);
+  const password = String(data.get('password') || '');
+  const confirmation = String(data.get('passwordConfirm') || '');
+  if (confirmation && password !== confirmation) {
+    showAuthError('Les deux mots de passe ne correspondent pas.');
+    return;
+  }
+  if (password && password.length < 10) {
+    showAuthError('Le mot de passe doit contenir au moins 10 caractères.');
+    return;
+  }
+  setAuthBusy(form, true);
+  try {
+    const payload = Object.fromEntries(data.entries());
+    const result = await action(payload);
+    if (result?.confirmationRequired) {
+      showAuthMode('confirmation');
+      return;
+    }
+    applyAuthUI();
+    showToast('Bienvenue dans votre agenda familial.');
+  } catch (error) {
+    showAuthError(error.message || 'Opération impossible.');
+  } finally {
+    setAuthBusy(form, false);
   }
 }
 
@@ -425,7 +646,6 @@ function setupSwipe() {
   });
 }
 
-// Délégation des interactions et branchement des contrôles natifs.
 function setupEvents() {
   document.addEventListener('click', (event) => {
     const viewButton = event.target.closest('[data-view]');
@@ -439,9 +659,13 @@ function setupEvents() {
 
     if (event.target.closest('[data-open-event]')) openEventDialog();
     if (event.target.closest('[data-close-dialog]')) closeEventDialog();
+    if (event.target.closest('[data-close-account]')) closeAccountDialog();
 
-    const deleteButton = event.target.closest('[data-delete-event]');
-    if (deleteButton) deleteEvent(deleteButton.dataset.deleteEvent);
+    const authModeButton = event.target.closest('[data-auth-mode]');
+    if (authModeButton) showAuthMode(authModeButton.dataset.authMode);
+
+    const editButton = event.target.closest('[data-edit-event]');
+    if (editButton) openEventDialog(editButton.dataset.editEvent);
 
     const modeButton = event.target.closest('[data-agenda-mode]');
     if (modeButton) {
@@ -459,21 +683,93 @@ function setupEvents() {
 
   $('#previousWeek').addEventListener('click', () => moveWeek(-1));
   $('#nextWeek').addEventListener('click', () => moveWeek(1));
-  $('#quickAddButton').addEventListener('click', openEventDialog);
+  $('#quickAddButton').addEventListener('click', () => openEventDialog());
   $('#goTodayButton').addEventListener('click', () => selectDate(toISO(new Date())));
   $('#agendaTodayButton').addEventListener('click', () => { selectDate(toISO(new Date())); switchView('agenda'); });
   $('#eventForm').addEventListener('submit', handleEventSubmit);
+  $('#deleteCurrentEventButton').addEventListener('click', deleteCurrentEvent);
   $('#quietModeToggle').addEventListener('change', (event) => { store.setSetting('quietMode', event.target.checked); showToast(event.target.checked ? 'Mode doux activé.' : 'Mode doux désactivé.'); });
-  $('#protectMomentButton').addEventListener('click', () => showToast('Ce moment est maintenant protégé.'));
-  $('#notificationButton').addEventListener('click', () => showToast('Tout est calme. Aucune urgence familiale.'));
-  $('#addMemberButton').addEventListener('click', copyFamilyLink);
-  $('#copyFamilyCodeButton').addEventListener('click', copyFamilyLink);
-  $('#resetButton').addEventListener('click', () => { if (confirm('Supprimer tous les événements et restaurer uniquement Nacer, Romane et Chacha ?')) { store.reset(); state.activeMember = 'all'; state.selectedDate = toISO(new Date()); state.weekAnchor = startOfWeek(new Date()); showToast('L’agenda familial est maintenant vide.'); } });
+  $('#protectMomentButton').addEventListener('click', () => { openEventDialog(); $('#eventForm').elements.title.value = 'Temps pour soi'; });
+  $('#accountButton').addEventListener('click', openAccountDialog);
+  $('#addMemberButton').addEventListener('click', openAccountDialog);
+  $('#manageAccessButton').addEventListener('click', openAccountDialog);
+  $('#inviteButton').addEventListener('click', createInvitation);
+  $('#copyInviteButton').addEventListener('click', copyInviteLink);
+  $('#exportButton').addEventListener('click', () => { store.exportData(); showToast('Sauvegarde téléchargée.'); });
+  $('#logoutButton').addEventListener('click', async () => { closeAccountDialog(); await store.logout(); applyAuthUI(); });
+  $('#resetButton').addEventListener('click', () => {
+    const user = store.getCurrentUser();
+    if (user?.role !== 'admin') { showToast('Seul Nacer peut réinitialiser l’agenda.'); return; }
+    if (confirm('Supprimer tous les événements et restaurer uniquement Nacer, Romane et Chacha ?')) {
+      store.reset();
+      state.activeMember = 'all';
+      state.selectedDate = toISO(new Date());
+      state.weekAnchor = startOfWeek(new Date());
+      showToast('L’agenda familial est maintenant vide.');
+    }
+  });
   $('#installButton').addEventListener('click', installApp);
   $('#eventDialog').addEventListener('click', (event) => { if (event.target === $('#eventDialog')) closeEventDialog(); });
-  window.addEventListener('online', () => { updateConnection(); store.connectRemote(); });
+  $('#accountDialog').addEventListener('click', (event) => { if (event.target === $('#accountDialog')) closeAccountDialog(); });
+  $('#loginForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.login(payload)); });
+  $('#setupForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.setup(payload)); });
+  $('#inviteForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.acceptInvite(payload)); });
+  $('#forgotPasswordButton').addEventListener('click', () => showAuthMode('resetRequest'));
+  $('#inviteExistingLoginButton').addEventListener('click', () => {
+    const code = $('#inviteForm').elements.token.value;
+    store.stageJoin(code, $('#inviteForm').elements.displayName.value || 'Romane');
+    showAuthMode('login');
+  });
+  $('#resetRequestForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    setAuthBusy(form, true);
+    try {
+      await store.requestPasswordReset(new FormData(form).get('email'));
+      showAuthMode('confirmation');
+      $('#confirmationPanel .auth-notice span').textContent = 'Le lien de réinitialisation vient d’être envoyé. Ouvre-le sur cet appareil.';
+    } catch (error) { showAuthError(error.message || 'Envoi impossible.'); }
+    finally { setAuthBusy(form, false); }
+  });
+  $('#recoveryForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    submitAuthForm(event.currentTarget, ({ password }) => store.updatePassword(password));
+  });
+  $('#createCurrentFamilyForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    setAuthBusy(form, true);
+    try {
+      await store.createFamilyForCurrentAccount(new FormData(form).get('displayName'));
+      applyAuthUI();
+      showToast('La famille est prête.');
+    } catch (error) { showAuthError(error.message || 'Création impossible.'); }
+    finally { setAuthBusy(form, false); }
+  });
+  $('#joinCurrentFamilyForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    setAuthBusy(form, true);
+    try {
+      await store.joinExistingAccount(data.get('code'), data.get('displayName'));
+      history.replaceState({}, '', location.pathname);
+      applyAuthUI();
+      showToast('Bienvenue dans la famille.');
+    } catch (error) { showAuthError(error.message || 'Code invalide.'); }
+    finally { setAuthBusy(form, false); }
+  });
+  $('#orphanLogoutButton').addEventListener('click', async () => { await store.logout(); applyAuthUI(); });
+  window.addEventListener('online', updateConnection);
   window.addEventListener('offline', updateConnection);
-  store.addEventListener('change', () => { render(); updateConnection(); });
+  store.addEventListener('change', (event) => {
+    const reason = event.detail?.reason;
+    if (reason === 'auth-status') applyAuthUI(event.detail);
+    if (reason === 'operation-rejected') showToast(event.detail?.error?.message || 'Une modification a été refusée.');
+    if (reason === 'sync-error') showToast('La synchronisation reprendra automatiquement.');
+    if (store.getAuthStatus().authenticated) render();
+    updateConnection();
+  });
   setupSwipe();
 }
 
@@ -487,7 +783,6 @@ async function installApp() {
   showToast('Sur iPhone : Partager puis « Sur l’écran d’accueil ».');
 }
 
-// Installation et enregistrement du shell hors-ligne.
 function setupPWA() {
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
@@ -498,8 +793,15 @@ function setupPWA() {
   }
 }
 
-setupEvents();
-setupPWA();
-updateConnection();
-render();
-if (new URLSearchParams(location.search).get('action') === 'add') setTimeout(openEventDialog, 250);
+async function bootstrap() {
+  document.body.classList.add('is-authenticating');
+  setupEvents();
+  setupPWA();
+  render();
+  updateConnection();
+  const auth = await store.init();
+  applyAuthUI();
+  if (auth.authenticated && new URLSearchParams(location.search).get('action') === 'add') setTimeout(() => openEventDialog(), 250);
+}
+
+bootstrap();

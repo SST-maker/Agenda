@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#F6EED8">
   <meta name="description" content="AGENDA, l'organisation familiale partagée, fluide et apaisée.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net; manifest-src 'self'; worker-src 'self';">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="AGENDA">
@@ -12,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=1.1.0">
+  <link rel="stylesheet" href="styles.css?v=3.0.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -37,7 +38,96 @@
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M15 8l2 2M17 6l2 2"/></symbol>
+    <symbol id="i-log-out" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M15 3h5a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-5"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+    <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.7 4 3 9 3s9-1.3 9-3V5M3 11v6c0 1.7 4 3 9 3s9-1.3 9-3v-6"/></symbol>
   </svg>
+
+  <section class="auth-gate" id="authGate" aria-labelledby="authTitle">
+    <span class="auth-ambient auth-ambient-one"></span>
+    <span class="auth-ambient auth-ambient-two"></span>
+    <div class="auth-card">
+      <img class="auth-logo" src="assets/brand/logo-horizontal.svg" alt="AGENDA">
+      <div class="auth-intro">
+        <p class="eyebrow">Agenda familial privé</p>
+        <h1 id="authTitle">Votre famille,<br>au même rythme.</h1>
+        <p id="authSubtitle">Connectez-vous pour retrouver l’agenda partagé.</p>
+      </div>
+
+      <section id="configPanel" class="auth-form" hidden>
+        <div class="auth-notice"><strong>Configuration Supabase requise</strong><span>Renseigne SUPABASE_URL et SUPABASE_PUBLISHABLE_KEY dans GitHub, puis relance le déploiement.</span></div>
+        <p class="password-hint">La procédure exacte se trouve dans <b>GUIDE_MISE_EN_LIGNE.md</b>.</p>
+      </section>
+
+      <form id="loginForm" class="auth-form" hidden>
+        <label class="field"><span>Adresse e-mail</span><input name="email" type="email" autocomplete="email" required></label>
+        <label class="field"><span>Mot de passe</span><input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary-button submit-button tap" type="submit">Se connecter <svg><use href="#i-arrow-up-right"></use></svg></button>
+        <button class="text-button auth-link tap" type="button" id="forgotPasswordButton">Mot de passe oublié</button>
+        <button class="text-button auth-link tap" type="button" data-auth-mode="setup">Premier lancement : créer l’agenda</button>
+      </form>
+
+      <form id="setupForm" class="auth-form" hidden>
+        <div class="auth-notice"><strong>Premier lancement</strong><span>Nacer crée le compte administrateur et la famille vide.</span></div>
+        <label class="field"><span>Prénom</span><input name="displayName" value="Nacer" maxlength="60" required></label>
+        <label class="field"><span>Adresse e-mail de Nacer</span><input name="email" type="email" autocomplete="email" required></label>
+        <label class="field"><span>Mot de passe</span><input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
+        <label class="field"><span>Confirmer le mot de passe</span><input name="passwordConfirm" type="password" autocomplete="new-password" minlength="10" required></label>
+        <p class="password-hint">10 caractères minimum. Une confirmation par e-mail peut être demandée par Supabase.</p>
+        <button class="primary-button submit-button tap" type="submit">Créer notre agenda <svg><use href="#i-arrow-up-right"></use></svg></button>
+        <button class="text-button auth-link tap" type="button" data-auth-mode="login">J’ai déjà un compte</button>
+      </form>
+
+      <form id="inviteForm" class="auth-form" hidden>
+        <div class="auth-notice"><strong>Invitation familiale</strong><span>Romane crée son accès personnel à la famille.</span></div>
+        <input name="token" type="hidden">
+        <label class="field"><span>Prénom</span><input name="displayName" value="Romane" maxlength="60" required></label>
+        <label class="field"><span>Adresse e-mail de Romane</span><input name="email" type="email" autocomplete="email" required></label>
+        <label class="field"><span>Mot de passe</span><input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
+        <label class="field"><span>Confirmer le mot de passe</span><input name="passwordConfirm" type="password" autocomplete="new-password" minlength="10" required></label>
+        <button class="primary-button submit-button tap" type="submit">Rejoindre la famille <svg><use href="#i-arrow-up-right"></use></svg></button>
+        <button class="text-button auth-link tap" type="button" id="inviteExistingLoginButton">J’ai déjà un compte Supabase</button>
+      </form>
+
+      <form id="resetRequestForm" class="auth-form" hidden>
+        <div class="auth-notice"><strong>Réinitialisation</strong><span>Un lien sécurisé sera envoyé à cette adresse.</span></div>
+        <label class="field"><span>Adresse e-mail</span><input name="email" type="email" autocomplete="email" required></label>
+        <button class="primary-button submit-button tap" type="submit">Envoyer le lien <svg><use href="#i-mail"></use></svg></button>
+        <button class="text-button auth-link tap" type="button" data-auth-mode="login">Retour à la connexion</button>
+      </form>
+
+      <form id="recoveryForm" class="auth-form" hidden>
+        <div class="auth-notice"><strong>Nouveau mot de passe</strong><span>Choisis un nouveau mot de passe pour ce compte.</span></div>
+        <label class="field"><span>Nouveau mot de passe</span><input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
+        <label class="field"><span>Confirmer</span><input name="passwordConfirm" type="password" autocomplete="new-password" minlength="10" required></label>
+        <button class="primary-button submit-button tap" type="submit">Mettre à jour <svg><use href="#i-check"></use></svg></button>
+      </form>
+
+      <section id="confirmationPanel" class="auth-form" hidden>
+        <div class="auth-notice"><strong>Vérifie ta boîte e-mail</strong><span>Clique sur le lien Supabase reçu, puis reviens ici. La création ou l’invitation se terminera automatiquement.</span></div>
+        <button class="secondary-button tap" type="button" data-auth-mode="login">Revenir à la connexion</button>
+      </section>
+
+      <section id="noFamilyPanel" class="auth-form" hidden>
+        <div class="auth-notice"><strong>Compte connecté, famille absente</strong><span>Crée la famille de Nacer ou rejoins-la avec un code d’invitation.</span></div>
+        <form id="createCurrentFamilyForm" class="nested-auth-form">
+          <label class="field"><span>Prénom administrateur</span><input name="displayName" value="Nacer" required></label>
+          <button class="primary-button tap" type="submit">Créer la famille</button>
+        </form>
+        <form id="joinCurrentFamilyForm" class="nested-auth-form">
+          <label class="field"><span>Prénom</span><input name="displayName" value="Romane" required></label>
+          <label class="field"><span>Code d’invitation</span><input name="code" placeholder="AGENDA-XXXXXXXXXXXX" required></label>
+          <button class="secondary-button tap" type="submit">Rejoindre la famille</button>
+        </form>
+        <button class="text-button auth-link tap" type="button" id="orphanLogoutButton">Se déconnecter</button>
+      </section>
+
+      <p class="auth-error" id="authError" hidden></p>
+      <p class="auth-offline" id="authOffline" hidden></p>
+    </div>
+  </section>
 
   <div class="app-shell" id="appShell">
     <div class="ambient ambient-one"></div>
@@ -53,9 +143,8 @@
           <span class="connection-dot"></span>
           <span>Synchronisé</span>
         </span>
-        <button class="icon-button tap" id="notificationButton" aria-label="Notifications">
-          <svg><use href="#i-bell"></use></svg>
-          <span class="notification-dot"></span>
+        <button class="icon-button tap" id="accountButton" aria-label="Compte et partage familial">
+          <svg><use href="#i-user"></use></svg>
         </button>
       </div>
     </header>
@@ -210,8 +299,8 @@
             <label class="switch"><input type="checkbox" id="quietModeToggle"><span></span></label>
           </div>
           <div class="setting-row">
-            <div><strong>Partage familial</strong><span>Code : <b id="familyCode">HORIZON-24</b></span></div>
-            <button class="secondary-button tap" id="copyFamilyCodeButton">Copier le lien</button>
+            <div><strong>Partage familial</strong><span>Invitation privée valable 72 heures.</span></div>
+            <button class="secondary-button tap" id="manageAccessButton">Gérer les accès</button>
           </div>
           <div class="setting-row">
             <div><strong>Installation</strong><span>Ajoute AGENDA à l’écran d’accueil.</span></div>
@@ -242,6 +331,7 @@
         <button type="button" class="icon-button tap" data-close-dialog aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
       </header>
 
+      <input type="hidden" name="eventId">
       <div class="form-grid">
         <label class="field field-wide"><span>Titre</span><input name="title" maxlength="80" required placeholder="Ex. Rendez-vous pédiatre"></label>
         <label class="field"><span>Date</span><input type="date" name="date" required></label>
@@ -252,11 +342,38 @@
         <fieldset class="member-picker field-wide"><legend>Pour qui ?</legend><div id="dialogMemberPicker"></div></fieldset>
         <label class="field field-wide"><span>Note</span><textarea name="notes" rows="3" maxlength="300" placeholder="Une information utile pour la famille…"></textarea></label>
       </div>
-      <button class="primary-button submit-button tap" type="submit">Créer le moment <svg><use href="#i-arrow-up-right"></use></svg></button>
+      <div class="dialog-actions"><button class="danger-text-button tap" type="button" id="deleteCurrentEventButton" hidden><svg><use href="#i-trash"></use></svg>Supprimer</button><button class="primary-button submit-button tap" id="eventSubmitButton" type="submit">Créer le moment <svg><use href="#i-arrow-up-right"></use></svg></button></div>
     </form>
   </dialog>
 
+
+  <dialog class="account-dialog" id="accountDialog" aria-labelledby="accountTitle">
+    <section class="account-sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div><p class="eyebrow">Compte familial</p><h2 id="accountTitle">Accès et sauvegarde</h2></div>
+        <button type="button" class="icon-button tap" data-close-account aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
+      </header>
+      <div class="account-profile">
+        <span class="account-avatar" id="accountAvatar">NA</span>
+        <div><strong id="accountName">Nacer</strong><span id="accountEmail"></span></div>
+        <span class="account-role" id="accountRole">Administrateur</span>
+      </div>
+      <div class="account-actions">
+        <button class="account-action tap" id="inviteButton" type="button"><span><svg><use href="#i-users"></use></svg></span><div><strong>Inviter Romane</strong><small>Génère un lien privé valable 72 heures.</small></div><svg><use href="#i-chevron-right"></use></svg></button>
+        <button class="account-action tap" id="exportButton" type="button"><span><svg><use href="#i-database"></use></svg></span><div><strong>Exporter une sauvegarde</strong><small>Télécharge tous les rendez-vous en JSON.</small></div><svg><use href="#i-download"></use></svg></button>
+        <button class="account-action danger tap" id="logoutButton" type="button"><span><svg><use href="#i-log-out"></use></svg></span><div><strong>Se déconnecter</strong><small>Les données locales restent chiffrées par le navigateur.</small></div><svg><use href="#i-chevron-right"></use></svg></button>
+      </div>
+      <div class="invite-result" id="inviteResult" hidden>
+        <p class="eyebrow">Invitation créée</p>
+        <p>Envoie ce lien uniquement à Romane. Il devient inutilisable après sa première utilisation.</p>
+        <div><input id="inviteLink" readonly><button class="secondary-button tap" id="copyInviteButton" type="button">Copier</button></div>
+        <p class="password-hint">Code : <b id="inviteCode"></b></p>
+      </div>
+    </section>
+  </dialog>
+
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=1.1.0"></script>
+  <script type="module" src="js/app.js?v=3.0.0"></script>
 </body>
 </html>

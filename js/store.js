@@ -1,12 +1,13 @@
-const STORAGE_KEY = 'agenda-family-v2';
-const FAMILY_KEY = 'agenda-family-code';
-const CHANNEL_NAME = 'agenda-family-sync';
-const DATA_VERSION = 2;
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js';
 
-const uid = () => {
-  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
-  return `evt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-};
+const STORAGE_KEY = 'agenda-family-supabase-state-v1';
+const QUEUE_KEY = 'agenda-family-supabase-queue-v1';
+const PENDING_ONBOARDING_KEY = 'agenda-family-supabase-onboarding-v1';
+const CHANNEL_NAME = 'agenda-family-supabase-tabs';
+const DATA_VERSION = 1;
+
+const uid = () => globalThis.crypto?.randomUUID?.() || `evt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 export const CATEGORY_META = {
   family: { label: 'Famille', color: '#C79A5C' },
@@ -17,127 +18,190 @@ export const CATEGORY_META = {
   home: { label: 'Maison', color: '#6D8C7E' }
 };
 
-const toISO = (date) => {
+export const toISO = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
-const addDays = (date, days) => {
+export const addDays = (date, days) => {
   const copy = new Date(date);
   copy.setDate(copy.getDate() + days);
   return copy;
 };
 
-/**
- * État initial volontairement vierge : Nacer, Romane et Chacha peuvent
- * construire leur propre organisation sans aucun événement de démonstration.
- */
 function createSeed() {
   return {
     version: DATA_VERSION,
+    family: { id: null, name: 'Famille Nacer & Romane' },
     settings: { quietMode: false },
     members: [
-      { id: 'nacer', name: 'Nacer', role: 'Papa', initials: 'NA', color: '#224A54' },
-      { id: 'romane', name: 'Romane', role: 'Maman', initials: 'RO', color: '#C79A5C' },
-      { id: 'chacha', name: 'Chacha', role: 'Enfant', initials: 'CH', color: '#739A87' }
+      { id: 'local-nacer', name: 'Nacer', role: 'Papa', initials: 'NA', color: '#224A54' },
+      { id: 'local-romane', name: 'Romane', role: 'Maman', initials: 'RO', color: '#C79A5C' },
+      { id: 'local-chacha', name: 'Chacha', role: 'Enfant', initials: 'CH', color: '#739A87' }
     ],
-    events: []
+    events: [],
+    syncedAt: null
   };
 }
 
 function normalizeState(candidate) {
   const seed = createSeed();
-
-  // Toute ancienne version contenait les données de démonstration : on repart
-  // donc volontairement sur le nouvel agenda familial vide.
   if (!candidate || candidate.version !== DATA_VERSION) return seed;
-
   return {
     version: DATA_VERSION,
-    settings: {
-      quietMode: Boolean(candidate.settings?.quietMode)
-    },
-    members: Array.isArray(candidate.members) && candidate.members.length
-      ? candidate.members
-      : seed.members,
-    events: Array.isArray(candidate.events) ? candidate.events : []
+    family: candidate.family || seed.family,
+    settings: { quietMode: Boolean(candidate.settings?.quietMode) },
+    members: Array.isArray(candidate.members) && candidate.members.length ? candidate.members : seed.members,
+    events: Array.isArray(candidate.events) ? candidate.events : [],
+    syncedAt: candidate.syncedAt || null
   };
 }
 
-/**
- * Couche de données locale-first.
- * L'UI fonctionne avec localStorage, puis active automatiquement l'API temps réel
- * quand l'application est servie par le serveur Node fourni.
- */
+function appBaseUrl() {
+  const url = new URL(location.href);
+  url.search = '';
+  url.hash = '';
+  url.pathname = url.pathname.replace(/[^/]*$/, '');
+  return url.toString();
+}
+
+function isConfigured() {
+  return /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(SUPABASE_URL)
+    && typeof SUPABASE_PUBLISHABLE_KEY === 'string'
+    && !SUPABASE_PUBLISHABLE_KEY.includes('VOTRE_')
+    && SUPABASE_PUBLISHABLE_KEY.length > 30;
+}
+
+function mapMember(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    role: row.role_label,
+    initials: row.initials,
+    color: row.color,
+    linkedUserId: row.linked_user_id,
+    sortOrder: row.sort_order
+  };
+}
+
+function mapEvent(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    date: row.event_date,
+    time: String(row.event_time || '00:00').slice(0, 5),
+    duration: Number(row.duration_minutes),
+    category: row.category,
+    location: row.location || '',
+    notes: row.notes || '',
+    memberIds: Array.isArray(row.member_ids) ? row.member_ids : [],
+    familyId: row.family_id,
+    updatedAt: row.updated_at
+  };
+}
+
+function eventToRow(event, familyId, userId) {
+  return {
+    id: event.id,
+    family_id: familyId,
+    title: String(event.title || '').trim().slice(0, 80),
+    event_date: event.date,
+    event_time: event.time,
+    duration_minutes: Number(event.duration),
+    category: CATEGORY_META[event.category] ? event.category : 'family',
+    location: String(event.location || '').trim().slice(0, 100) || null,
+    notes: String(event.notes || '').trim().slice(0, 300) || null,
+    member_ids: Array.isArray(event.memberIds) ? event.memberIds : [],
+    updated_by: userId
+  };
+}
+
 class AgendaStore extends EventTarget {
   constructor() {
     super();
     this.clientId = uid();
-    this.familyId = this.resolveFamilyId();
+    this.configured = isConfigured();
+    this.supabase = this.configured
+      ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+          auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+          realtime: { params: { eventsPerSecond: 10 } }
+        })
+      : null;
+    this.state = this.loadState();
+    this.queue = this.loadQueue();
+    this.currentUser = null;
+    this.session = null;
+    this.authenticated = false;
+    this.needsFamily = false;
+    this.recoveryMode = false;
     this.remoteReady = false;
-    this.syncTimer = null;
-    this.eventSource = null;
-    this.channel = 'BroadcastChannel' in window ? new BroadcastChannel(CHANNEL_NAME) : null;
-    this.state = this.load();
+    this.offlineSession = false;
+    this.flushing = false;
+    this.realtimeChannel = null;
+    this.pullTimer = null;
+    this.sessionTask = null;
+    this.sessionTaskToken = null;
+    this.channel = 'BroadcastChannel' in globalThis ? new BroadcastChannel(CHANNEL_NAME) : null;
 
     this.channel?.addEventListener('message', (event) => {
-      if (event.data?.familyId !== this.familyId || event.data?.clientId === this.clientId) return;
-      this.state = this.load();
-      this.emit('remote-update');
+      if (event.data?.clientId === this.clientId) return;
+      this.state = this.loadState();
+      this.queue = this.loadQueue();
+      this.emit('remote-tab-update');
     });
 
-    window.addEventListener('storage', (event) => {
-      if (event.key === this.storageKey) {
-        this.state = this.load();
-        this.emit('remote-update');
+    globalThis.addEventListener('storage', (event) => {
+      if ([STORAGE_KEY, QUEUE_KEY].includes(event.key)) {
+        this.state = this.loadState();
+        this.queue = this.loadQueue();
+        this.emit('remote-tab-update');
       }
     });
 
-    this.connectRemote();
+    globalThis.addEventListener('online', () => this.reconnect());
+    globalThis.addEventListener('offline', () => {
+      this.remoteReady = false;
+      this.emit('sync-status');
+    });
   }
 
-  resolveFamilyId() {
-    const queryCode = new URLSearchParams(location.search).get('family')?.toUpperCase();
-    const storedCode = this.safeStorageGet(FAMILY_KEY)?.toUpperCase();
-    const code = [queryCode, storedCode, 'HORIZON-24'].find((value) => /^[A-Z0-9-]{4,32}$/.test(value || ''));
-    this.safeStorageSet(FAMILY_KEY, code);
-    return code;
+  safeGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
+  safeSet(key, value) { try { localStorage.setItem(key, value); } catch { /* stockage privé indisponible */ } }
+  safeRemove(key) { try { localStorage.removeItem(key); } catch { /* rien */ } }
+
+  loadState() {
+    try { return normalizeState(JSON.parse(this.safeGet(STORAGE_KEY) || 'null')); }
+    catch { return createSeed(); }
   }
 
-  get storageKey() { return `${STORAGE_KEY}:${this.familyId}`; }
-
-  safeStorageGet(key) {
-    try { return localStorage.getItem(key); } catch { return null; }
-  }
-
-  safeStorageSet(key, value) {
-    try { localStorage.setItem(key, value); } catch { /* navigation privée stricte */ }
-  }
-
-  load() {
-    try {
-      const raw = this.safeStorageGet(this.storageKey);
-      if (!raw) {
-        const seed = createSeed();
-        this.safeStorageSet(this.storageKey, JSON.stringify(seed));
-        return seed;
-      }
-      const normalized = normalizeState(JSON.parse(raw));
-      this.safeStorageSet(this.storageKey, JSON.stringify(normalized));
-      return normalized;
-    } catch (error) {
-      console.warn('Données locales illisibles, réinitialisation.', error);
-      return createSeed();
-    }
-  }
-
-  save(reason = 'update', { pushRemote = true } = {}) {
-    this.safeStorageSet(this.storageKey, JSON.stringify(this.state));
-    this.channel?.postMessage({ reason, familyId: this.familyId, clientId: this.clientId, at: Date.now() });
+  saveState(reason = 'update') {
+    this.safeSet(STORAGE_KEY, JSON.stringify(this.state));
+    this.channel?.postMessage({ reason, clientId: this.clientId, at: Date.now() });
     this.emit(reason);
-    if (pushRemote) this.scheduleRemotePush();
+  }
+
+  loadQueue() {
+    try {
+      const value = JSON.parse(this.safeGet(QUEUE_KEY) || '[]');
+      return Array.isArray(value) ? value : [];
+    } catch { return []; }
+  }
+
+  saveQueue() {
+    this.safeSet(QUEUE_KEY, JSON.stringify(this.queue));
+    this.channel?.postMessage({ reason: 'queue', clientId: this.clientId, at: Date.now() });
+  }
+
+  getPendingOnboarding() {
+    try { return JSON.parse(this.safeGet(PENDING_ONBOARDING_KEY) || 'null'); }
+    catch { return null; }
+  }
+
+  setPendingOnboarding(value) {
+    if (value) this.safeSet(PENDING_ONBOARDING_KEY, JSON.stringify(value));
+    else this.safeRemove(PENDING_ONBOARDING_KEY);
   }
 
   emit(reason, extra = {}) {
@@ -145,112 +209,408 @@ class AgendaStore extends EventTarget {
   }
 
   getState() { return structuredClone(this.state); }
-  getFamilyId() { return this.familyId; }
+  getCurrentUser() { return this.currentUser ? structuredClone(this.currentUser) : null; }
+  getAuthStatus() {
+    return {
+      configured: this.configured,
+      authenticated: this.authenticated,
+      needsFamily: this.needsFamily,
+      recoveryMode: this.recoveryMode,
+      offlineSession: this.offlineSession,
+      user: this.getCurrentUser()
+    };
+  }
   isRemoteReady() { return this.remoteReady; }
+  hasPendingChanges() { return this.queue.length > 0; }
+
+  async init() {
+    if (!this.configured) {
+      this.emit('auth-status');
+      return this.getAuthStatus();
+    }
+
+    this.supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') this.recoveryMode = true;
+      if (event === 'SIGNED_OUT') {
+        this.clearAuthenticatedState();
+        this.emit('auth-status');
+      }
+      if (['SIGNED_IN', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event) && session) {
+        queueMicrotask(() => this.handleSession(session, event).catch((error) => this.emit('auth-status', { error })));
+      }
+    });
+
+    try {
+      const { data, error } = await this.supabase.auth.getSession();
+      if (error) throw error;
+      if (data.session) await this.handleSession(data.session, 'INITIAL_SESSION');
+      else this.clearAuthenticatedState();
+    } catch (error) {
+      this.remoteReady = false;
+      const cachedSession = this.safeGet('sb-offline-session-seen');
+      this.offlineSession = Boolean(cachedSession && this.state.family?.id);
+      this.authenticated = this.offlineSession;
+      if (this.offlineSession) {
+        this.currentUser = JSON.parse(cachedSession);
+      }
+      this.emit('auth-status', { error });
+    }
+    return this.getAuthStatus();
+  }
+
+  async handleSession(session, reason = 'SIGNED_IN') {
+    const token = session?.access_token || session?.user?.id;
+    if (this.sessionTask && this.sessionTaskToken === token) return this.sessionTask;
+    this.sessionTaskToken = token;
+    this.sessionTask = this.processSession(session, reason);
+    try {
+      return await this.sessionTask;
+    } finally {
+      if (this.sessionTaskToken === token) {
+        this.sessionTask = null;
+        this.sessionTaskToken = null;
+      }
+    }
+  }
+
+  async processSession(session, reason = 'SIGNED_IN') {
+    this.session = session;
+    this.authenticated = true;
+    this.offlineSession = false;
+    const metadataName = session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'Membre';
+    this.currentUser = { id: session.user.id, email: session.user.email, displayName: metadataName, role: 'member' };
+    this.safeSet('sb-offline-session-seen', JSON.stringify(this.currentUser));
+
+    await this.completePendingOnboarding();
+    await this.pullRemote();
+    if (!this.needsFamily) {
+      this.openRealtime();
+      await this.flushQueue();
+    }
+    this.emit('auth-status', { authEvent: reason });
+  }
+
+  clearAuthenticatedState() {
+    this.session = null;
+    this.authenticated = false;
+    this.currentUser = null;
+    this.needsFamily = false;
+    this.offlineSession = false;
+    this.remoteReady = false;
+    this.closeRealtime();
+    this.safeRemove('sb-offline-session-seen');
+  }
+
+  async setup({ displayName, email, password }) {
+    this.setPendingOnboarding({ mode: 'create', displayName: displayName || 'Nacer' });
+    const { data, error } = await this.supabase.auth.signUp({
+      email: String(email || '').trim().toLowerCase(),
+      password,
+      options: { data: { display_name: displayName || 'Nacer' }, emailRedirectTo: appBaseUrl() }
+    });
+    if (error) throw error;
+    if (data.session) await this.handleSession(data.session, 'SIGNED_IN');
+    return { confirmationRequired: !data.session };
+  }
+
+  async login({ email, password }) {
+    const { data, error } = await this.supabase.auth.signInWithPassword({
+      email: String(email || '').trim().toLowerCase(),
+      password
+    });
+    if (error) throw error;
+    await this.handleSession(data.session, 'SIGNED_IN');
+    return { user: this.currentUser };
+  }
+
+  stageJoin(code, displayName = 'Romane') {
+    this.setPendingOnboarding({ mode: 'join', code: String(code || '').trim().toUpperCase(), displayName });
+  }
+
+  async createFamilyForCurrentAccount(displayName = 'Nacer') {
+    this.setPendingOnboarding({ mode: 'create', displayName });
+    await this.completePendingOnboarding();
+    await this.pullRemote();
+    this.openRealtime();
+    this.emit('auth-status');
+  }
+
+  async acceptInvite({ token, displayName, email, password }) {
+    const code = String(token || '').trim().toUpperCase();
+    this.setPendingOnboarding({ mode: 'join', code, displayName: displayName || 'Romane' });
+    const { data, error } = await this.supabase.auth.signUp({
+      email: String(email || '').trim().toLowerCase(),
+      password,
+      options: { data: { display_name: displayName || 'Romane' }, emailRedirectTo: appBaseUrl() }
+    });
+    if (error) throw error;
+    if (data.session) await this.handleSession(data.session, 'SIGNED_IN');
+    return { confirmationRequired: !data.session };
+  }
+
+  async completePendingOnboarding() {
+    const pending = this.getPendingOnboarding();
+    if (!pending || !this.session) return;
+    const functionName = pending.mode === 'join' ? 'join_agenda_family' : 'create_agenda_family';
+    const args = pending.mode === 'join'
+      ? { p_code: pending.code, p_display_name: pending.displayName || 'Romane' }
+      : { p_display_name: pending.displayName || 'Nacer' };
+    const { error } = await this.supabase.rpc(functionName, args);
+    if (error) {
+      if (!/déjà|already|membership/i.test(error.message || '')) throw error;
+    }
+    this.setPendingOnboarding(null);
+  }
+
+  async joinExistingAccount(code, displayName = 'Romane') {
+    this.setPendingOnboarding({ mode: 'join', code: String(code).trim().toUpperCase(), displayName });
+    await this.completePendingOnboarding();
+    await this.pullRemote();
+    this.openRealtime();
+    this.emit('auth-status');
+  }
+
+  async logout() {
+    this.closeRealtime();
+    await this.supabase.auth.signOut();
+    this.clearAuthenticatedState();
+    this.emit('auth-status');
+  }
+
+  async requestPasswordReset(email) {
+    const { error } = await this.supabase.auth.resetPasswordForEmail(String(email || '').trim().toLowerCase(), {
+      redirectTo: `${appBaseUrl()}?recovery=1`
+    });
+    if (error) throw error;
+  }
+
+  async updatePassword(password) {
+    const { error } = await this.supabase.auth.updateUser({ password });
+    if (error) throw error;
+    this.recoveryMode = false;
+    history.replaceState({}, '', location.pathname);
+    this.emit('auth-status');
+  }
+
+  async pullRemote() {
+    if (!this.supabase || !this.session || !navigator.onLine) {
+      this.remoteReady = false;
+      return;
+    }
+
+    const userId = this.session.user.id;
+    const [profileResult, membershipResult] = await Promise.all([
+      this.supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+      this.supabase.from('family_users').select('family_id, role').eq('user_id', userId).maybeSingle()
+    ]);
+    if (profileResult.error) throw profileResult.error;
+    if (membershipResult.error) throw membershipResult.error;
+
+    if (!membershipResult.data) {
+      this.needsFamily = true;
+      this.remoteReady = true;
+      this.currentUser = {
+        id: userId,
+        email: this.session.user.email,
+        displayName: profileResult.data?.display_name || this.currentUser?.displayName || 'Membre',
+        role: 'member'
+      };
+      return;
+    }
+
+    const familyId = membershipResult.data.family_id;
+    const [familyResult, membersResult, eventsResult] = await Promise.all([
+      this.supabase.from('families').select('id, name, quiet_mode, invite_expires_at').eq('id', familyId).single(),
+      this.supabase.from('members').select('*').eq('family_id', familyId).order('sort_order'),
+      this.supabase.from('events').select('*').eq('family_id', familyId).order('event_date').order('event_time')
+    ]);
+    for (const result of [familyResult, membersResult, eventsResult]) if (result.error) throw result.error;
+
+    this.needsFamily = false;
+    this.currentUser = {
+      id: userId,
+      email: this.session.user.email,
+      displayName: profileResult.data?.display_name || this.currentUser?.displayName || 'Membre',
+      role: membershipResult.data.role
+    };
+    this.safeSet('sb-offline-session-seen', JSON.stringify(this.currentUser));
+    this.state = {
+      version: DATA_VERSION,
+      family: { id: familyResult.data.id, name: familyResult.data.name, inviteExpiresAt: familyResult.data.invite_expires_at },
+      settings: { quietMode: Boolean(familyResult.data.quiet_mode) },
+      members: membersResult.data.map(mapMember),
+      events: eventsResult.data.map(mapEvent),
+      syncedAt: new Date().toISOString()
+    };
+    this.remoteReady = true;
+    this.saveState('remote-pull');
+  }
+
+  openRealtime() {
+    const familyId = this.state.family?.id;
+    if (!familyId || !this.supabase) return;
+    this.closeRealtime();
+    const schedulePull = () => {
+      clearTimeout(this.pullTimer);
+      this.pullTimer = setTimeout(() => this.pullRemote().catch((error) => this.emit('sync-error', { error })), 180);
+    };
+    this.realtimeChannel = this.supabase
+      .channel(`agenda-family-${familyId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, schedulePull)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, schedulePull)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'families' }, schedulePull)
+      .subscribe((status) => {
+        this.remoteReady = status === 'SUBSCRIBED';
+        this.emit('sync-status');
+      });
+  }
+
+  closeRealtime() {
+    clearTimeout(this.pullTimer);
+    if (this.realtimeChannel && this.supabase) this.supabase.removeChannel(this.realtimeChannel);
+    this.realtimeChannel = null;
+  }
+
+  enqueue(type, payload) {
+    const operation = { id: uid(), type, payload, createdAt: new Date().toISOString() };
+    this.queue.push(operation);
+    this.saveQueue();
+    this.flushQueue().catch(() => undefined);
+    return operation;
+  }
 
   addEvent(event) {
-    this.state.events.push({ id: uid(), ...event });
-    this.save('event-added');
+    const item = { ...event, id: event.id || uid(), familyId: this.state.family.id, updatedAt: new Date().toISOString() };
+    this.state.events.push(item);
+    this.saveState('event-added');
+    this.enqueue('upsert_event', item);
+    return item;
+  }
+
+  updateEvent(id, changes) {
+    const index = this.state.events.findIndex((event) => event.id === id);
+    if (index < 0) return null;
+    this.state.events[index] = { ...this.state.events[index], ...changes, id, updatedAt: new Date().toISOString() };
+    this.saveState('event-updated');
+    this.enqueue('upsert_event', this.state.events[index]);
+    return this.state.events[index];
   }
 
   deleteEvent(id) {
     this.state.events = this.state.events.filter((event) => event.id !== id);
-    this.save('event-deleted');
-  }
-
-  addMember(member) {
-    this.state.members.push({ id: uid(), ...member });
-    this.save('member-added');
+    this.saveState('event-deleted');
+    this.enqueue('delete_event', { id });
   }
 
   setSetting(key, value) {
-    this.state.settings[key] = value;
-    this.save('setting-updated');
+    if (key !== 'quietMode') return;
+    this.state.settings.quietMode = Boolean(value);
+    this.saveState('setting-updated');
+    this.enqueue('update_family', { quietMode: Boolean(value) });
   }
 
   reset() {
-    this.state = createSeed();
-    this.save('reset');
+    this.state.events = [];
+    this.saveState('reset');
+    this.enqueue('reset_events', {});
   }
 
-  async connectRemote() {
-    if (!/^https?:$/.test(location.protocol)) return;
-    if (this.remoteReady && this.eventSource?.readyState === EventSource.OPEN) return;
+  async createInvitation() {
+    const { data, error } = await this.supabase.rpc('rotate_family_invite');
+    if (error) throw error;
+    const code = typeof data === 'string' ? data : data?.code;
+    return {
+      token: code,
+      link: `${appBaseUrl()}?join=${encodeURIComponent(code)}`,
+      expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString()
+    };
+  }
+
+  exportData() {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      family: this.state.family,
+      members: this.state.members,
+      events: this.state.events,
+      settings: this.state.settings
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `agenda-famille-${toISO(new Date())}.json`;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async executeOperation(operation) {
+    const familyId = this.state.family?.id;
+    const userId = this.session?.user?.id;
+    if (!familyId || !userId) throw new Error('Session familiale indisponible.');
+    let result;
+    switch (operation.type) {
+      case 'upsert_event':
+        result = await this.supabase.from('events').upsert(eventToRow(operation.payload, familyId, userId));
+        break;
+      case 'delete_event':
+        result = await this.supabase.from('events').delete().eq('id', operation.payload.id).eq('family_id', familyId);
+        break;
+      case 'update_family':
+        result = await this.supabase.from('families').update({ quiet_mode: Boolean(operation.payload.quietMode) }).eq('id', familyId);
+        break;
+      case 'reset_events':
+        result = await this.supabase.from('events').delete().eq('family_id', familyId);
+        break;
+      default:
+        throw new Error(`Opération inconnue : ${operation.type}`);
+    }
+    if (result.error) throw result.error;
+  }
+
+  async flushQueue() {
+    if (this.flushing || !navigator.onLine || !this.session || !this.state.family?.id) return;
+    this.flushing = true;
+    this.emit('sync-status');
     try {
-      const health = await fetch('/api/health', { headers: { Accept: 'application/json' } });
-      if (!health.ok) return;
-      this.remoteReady = true;
-      this.emit('sync-status', { remoteReady: true });
-      await this.pullRemote();
-      this.openEventStream();
-    } catch {
-      this.remoteReady = false;
-      this.emit('sync-status', { remoteReady: false });
-    }
-  }
-
-  async pullRemote() {
-    if (!this.remoteReady) return;
-    const response = await fetch(`/api/state?familyId=${encodeURIComponent(this.familyId)}`, { headers: { Accept: 'application/json' } });
-    if (response.status === 404) {
-      await this.pushRemote();
-      return;
-    }
-    if (!response.ok) throw new Error(`Synchronisation impossible (${response.status})`);
-    const payload = await response.json();
-    if (!payload.state || !Array.isArray(payload.state.members) || !Array.isArray(payload.state.events)) return;
-
-    const needsMigration = payload.state.version !== DATA_VERSION;
-    this.state = normalizeState(payload.state);
-    this.save('remote-update', { pushRemote: false });
-
-    // Remplace aussi sur le serveur une éventuelle ancienne famille de démonstration.
-    if (needsMigration) await this.pushRemote();
-  }
-
-  scheduleRemotePush() {
-    if (!this.remoteReady) return;
-    clearTimeout(this.syncTimer);
-    this.syncTimer = setTimeout(() => this.pushRemote(), 220);
-  }
-
-  async pushRemote() {
-    if (!this.remoteReady) return;
-    try {
-      const response = await fetch('/api/state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ familyId: this.familyId, clientId: this.clientId, state: this.state })
-      });
-      if (!response.ok) throw new Error(`Enregistrement impossible (${response.status})`);
-      this.emit('sync-complete', { remoteReady: true });
-    } catch (error) {
-      console.warn(error);
-      this.remoteReady = false;
-      this.emit('sync-status', { remoteReady: false });
-    }
-  }
-
-  openEventStream() {
-    this.eventSource?.close();
-    this.eventSource = new EventSource(`/api/events?familyId=${encodeURIComponent(this.familyId)}`);
-    this.eventSource.addEventListener('update', async (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.clientId === this.clientId) return;
-        await this.pullRemote();
-      } catch (error) {
-        console.warn('Mise à jour temps réel ignorée.', error);
+      while (this.queue.length) {
+        const operation = this.queue[0];
+        try {
+          await this.executeOperation(operation);
+          this.queue.shift();
+          this.saveQueue();
+        } catch (error) {
+          const unrecoverable = /permission|policy|invalid|violates|not found|JWT/i.test(error.message || '');
+          if (unrecoverable) {
+            this.queue.shift();
+            this.saveQueue();
+            this.emit('operation-rejected', { error, operation });
+            continue;
+          }
+          throw error;
+        }
       }
-    });
-    this.eventSource.addEventListener('error', () => {
+      await this.pullRemote();
+    } finally {
+      this.flushing = false;
+      this.emit('sync-status');
+    }
+  }
+
+  async reconnect() {
+    if (!this.authenticated || !this.supabase) return;
+    try {
+      const { data } = await this.supabase.auth.getSession();
+      if (data.session) {
+        this.session = data.session;
+        await this.pullRemote();
+        this.openRealtime();
+        await this.flushQueue();
+      }
+    } catch (error) {
       this.remoteReady = false;
-      this.emit('sync-status', { remoteReady: false });
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = setTimeout(() => this.connectRemote(), 5000);
-    });
+      this.emit('sync-error', { error });
+    }
   }
 }
 
 export const store = new AgendaStore();
-export { toISO, addDays };

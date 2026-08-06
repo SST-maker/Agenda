@@ -1,7 +1,7 @@
 {
   "name": "AGENDA — La famille au même rythme",
   "short_name": "AGENDA",
-  "description": "Une expérience d'organisation familiale partagée, fluide, élégante et pensée mobile-first.",
+  "description": "Agenda familial privé et partagé pour Nacer, Romane et Chacha, avec synchronisation sécurisée et mode hors-ligne.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
@@ -82,5 +82,10 @@
       "form_factor": "wide",
       "label": "Dashboard familial desktop"
     }
+  ],
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
   ]
 }

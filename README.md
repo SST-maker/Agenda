@@ -1,71 +1,45 @@
-# AGENDA — PWA familiale premium
+# AGENDA familial — Supabase + GitHub Pages
 
-## Vision
-AGENDA transforme le calendrier partagé en expérience vivante : dashboard quotidien, timeline verticale, navigation gestuelle, filtres par membre, panorama hebdomadaire ondulant, calendrier mensuel interactif et espace « respiration ».
+Version **3.0.0** prête à être publiée comme PWA statique.
 
-## Charte extraite du pack logo
-- Bleu pétrole : `#224A54`
-- Vert profond : `#0E392A`
-- Crème : `#F6EED8`
-- Or : `#C79A5C`
-- Brun : `#8B5E3C`
+## Architecture
 
-Le symbole arbre-cœur devient le fil conducteur de l’interface : lien familial, croissance, calme et confiance.
+- **GitHub Pages** : héberge uniquement l’interface HTML/CSS/JavaScript et le Service Worker.
+- **Supabase Auth** : comptes personnels de Nacer et Romane.
+- **Supabase PostgreSQL** : familles, membres, paramètres et événements.
+- **Row Level Security** : chaque requête est limitée à la famille de l’utilisateur connecté.
+- **Supabase Realtime** : les changements apparaissent sur les deux téléphones.
+- **Stockage local + file d’attente** : les modifications hors ligne sont envoyées au retour d’Internet.
 
-## Fonctionnalités incluses
-- Dashboard mobile-first, tablette et desktop.
-- Vue globale ou filtrée par membre.
-- Timeline journalière avec geste gauche/droite entre les jours.
-- Vue agenda en flux, vue semaine « wave » et vue mensuelle complète.
-- Agenda initial vierge pour Nacer (Papa), Romane (Maman) et Chacha (Enfant).
-- Création et suppression d’événements.
-- Persistance locale immédiate avec `localStorage`.
-- Synchronisation entre onglets avec `BroadcastChannel`.
-- Synchronisation réelle entre appareils avec le serveur Node fourni.
-- Flux temps réel avec Server-Sent Events, sans dépendance externe.
-- Code familial partageable par lien.
-- Manifest PWA, Service Worker, cache hors-ligne et icônes du pack.
-- Détection hors-ligne, installation et micro-interactions.
-- Accessibilité : balises sémantiques, focus visibles, labels et réduction des animations.
+Aucun serveur Node.js, Render, Cloudflare ou disque persistant n’est nécessaire.
 
-## Démarrage recommandé — mode partagé
-Node.js 18 ou supérieur suffit. Aucune installation de paquet n’est nécessaire.
+## Démarrage
+
+La procédure complète se trouve dans **GUIDE_MISE_EN_LIGNE.md**.
+
+Résumé :
+
+1. Créer un projet Supabase.
+2. Exécuter `supabase/schema.sql` dans le SQL Editor.
+3. Créer un dépôt GitHub et ajouter les deux variables Actions demandées.
+4. Activer GitHub Pages avec la source **GitHub Actions**.
+5. Ouvrir l’adresse publiée, choisir **Premier lancement**, puis créer le compte de Nacer.
+6. Depuis l’application, générer l’invitation privée de Romane.
+
+## Contrôle local
 
 ```bash
-npm start
+npm test
 ```
 
-Puis ouvre :
-
-```text
-http://localhost:8080
-```
-
-Pour tester sur plusieurs téléphones connectés au même Wi-Fi :
-
-```bash
-HOST=0.0.0.0 PORT=8080 npm start
-```
-
-Ouvre ensuite l’adresse IP locale de l’ordinateur sur chaque téléphone, puis partage le lien familial depuis l’écran « Respirer ».
-
-## Mode statique uniquement
-La PWA peut aussi être publiée telle quelle sur GitHub Pages, Cloudflare Pages ou Netlify. Dans ce cas elle reste entièrement fonctionnelle hors ligne, mais les données restent enregistrées sur chaque appareil.
+Pour servir l’interface localement :
 
 ```bash
 python3 -m http.server 8080
 ```
 
-## Architecture
-- `index.html` : structure sémantique complète.
-- `styles.css` : design system responsive et animations.
-- `js/app.js` : contrôleur UI, navigation, rendu et interactions.
-- `js/store.js` : couche de données locale-first et synchronisation distante.
-- `server.js` : serveur statique, API JSON et flux temps réel SSE.
-- `service-worker.js` : stratégie de cache PWA.
-- `manifest.json` : métadonnées d’installation.
-- `assets/` : logos et icônes provenant du pack fourni.
-- `data/` : stockage JSON généré par le serveur.
+Puis ouvrir `http://localhost:8080`. Pour une connexion réelle, renseigner temporairement `js/config.js`.
 
-## Sécurité et passage en production
-Le serveur fourni est un socle autonome pour démonstration, réseau privé ou MVP. Le code familial sépare les espaces, mais ne remplace pas une authentification forte. Pour une commercialisation publique, ajoute une authentification par e-mail ou passkey, une base PostgreSQL, des règles d’autorisation, du chiffrement en transit via HTTPS et une stratégie de sauvegarde.
+## Sécurité importante
+
+La clé présente dans le navigateur doit être uniquement la **Publishable key** ou l’ancienne clé **anon**. Ne jamais utiliser la clé `service_role` ni une Secret key dans `js/config.js`, GitHub Pages ou les variables de déploiement.

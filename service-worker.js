@@ -1,20 +1,30 @@
-const CACHE_NAME = 'agenda-shell-v1.1.0';
+const CACHE_NAME = 'agenda-shell-v3.0.0';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=1.1.0',
+  './styles.css?v=3.0.0',
   './manifest.json',
-  './js/app.js?v=1.1.0',
-  './js/store.js?v=1.1.0',
+  './js/app.js?v=3.0.0',
+  './js/store.js?v=3.0.0',
+  './js/config.js',
   './assets/brand/logo-horizontal.svg',
   './assets/brand/logo-symbol.svg',
   './assets/brand/logo-symbol-light.svg',
   './assets/icons/agenda_app_icon_192x192.png',
   './assets/icons/agenda_app_icon_512x512.png'
 ];
+const SUPABASE_SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(async (cache) => {
+        await cache.addAll(APP_SHELL);
+        // Le SDK est mis en cache lorsqu’il est joignable, sans bloquer l’installation.
+        try { await cache.add(new Request(SUPABASE_SDK, { mode: 'cors' })); } catch { /* reprise réseau au prochain lancement */ }
+      })
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -28,10 +38,32 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
+
+  // Les appels Supabase contiennent des données privées : jamais de cache.
+  if (url.hostname.endsWith('.supabase.co')) return;
+
+  // SDK Supabase : cache-first pour permettre le redémarrage hors ligne.
+  if (url.href.startsWith('https://cdn.jsdelivr.net/npm/@supabase/supabase-js')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
+        if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
+        return response;
+      }))
+    );
+    return;
+  }
+
   if (url.origin !== self.location.origin) return;
 
   if (event.request.mode === 'navigate') {
-    event.respondWith(fetch(event.request).catch(() => caches.match('./index.html')));
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', response.clone()));
+          return response;
+        })
+        .catch(() => caches.match('./index.html'))
+    );
     return;
   }
 
@@ -39,10 +71,7 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
         .then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
+          if (response?.ok) caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
           return response;
         })
         .catch(() => cached);
