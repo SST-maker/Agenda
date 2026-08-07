@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.7.0';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.7.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.7.1';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.7.1';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -280,7 +280,7 @@ function renderFamilyFeed(data) {
       <span class="family-feed-copy"><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(item.subtitle)}</small></span>
       <span class="family-feed-arrow">${item.type === 'routine' ? (item.done ? icon('check') : icon('circle-check')) : icon('chevron-right')}</span>
     </button>`;
-  }).join('') : `<div class="family-feed-empty"><span>${icon('sparkles')}</span><div><strong>Rien ne presse aujourd’hui.</strong><p>Profitez de ce temps libre en famille.</p></div></div>`;
+  }).join('') : `<div class="family-feed-empty"><span>${icon('sparkles')}</span><div><strong>Rien ne presse aujourd’hui</strong><p>Profitez de ce temps libre en famille.</p></div></div>`;
 }
 
 function shoppingItemCard(item) {
@@ -328,7 +328,7 @@ function renderRoutinesDialog(data = store.getState()) {
   $$('[data-routine-filter]').forEach((button) => button.classList.toggle('is-active', button.dataset.routineFilter === state.routineFilter));
   const visible = state.routineFilter === 'today' ? routines.filter((routine) => routineIsScheduled(routine)) : routines;
   $('#routinesDialogCount').textContent = routines.length ? `${routines.length} routine${routines.length > 1 ? 's' : ''}` : 'Aucune routine';
-  $('#routinesList').innerHTML = visible.length ? visible.map((routine) => routineCard(routine, data)).join('') : `<div class="empty-state"><strong>${state.routineFilter === 'today' ? 'Aucune routine aujourd’hui.' : 'Aucune routine créée.'}</strong><p>Les habitudes familiales apparaîtront ici automatiquement.</p><button class="primary-button tap" data-open-routine>${icon('plus')}Créer une routine</button></div>`;
+  $('#routinesList').innerHTML = visible.length ? visible.map((routine) => routineCard(routine, data)).join('') : `<div class="empty-state"><strong>${state.routineFilter === 'today' ? 'Aucune routine aujourd’hui' : 'Aucune routine créée'}</strong><p>Les habitudes familiales apparaîtront ici automatiquement.</p><button class="primary-button tap" data-open-routine>${icon('plus')}Créer une routine</button></div>`;
 }
 
 function taskCard(task, data, compact = false) {
@@ -340,7 +340,10 @@ function taskCard(task, data, compact = false) {
     <div class="task-main">
       <div class="task-title-row"><strong>${escapeHTML(task.title)}</strong>${task.priority === 'high' ? '<span class="task-priority">Important</span>' : ''}</div>
       <div class="task-meta"><span>${icon('clock')}${escapeHTML(taskDueLabel(task))}</span>${responsible ? `<span>${renderAvatar(responsible, { className: 'task-avatar' })}${escapeHTML(memberDisplayName(responsible))}</span>` : `<span>${icon('users')}Toute la famille</span>`}</div>
-      <button class="collaboration-mini tap" type="button" data-collaborate-type="task" data-collaborate-id="${task.id}">${icon('message')}<span>${shared.comments}</span>${icon('paperclip')}<span>${shared.attachments}</span>${icon('eye')}<span>${shared.reads}</span></button>
+      <button class="collaboration-entry tap" type="button" data-collaborate-type="task" data-collaborate-id="${task.id}" aria-label="Ouvrir Documents et échanges">
+        <span class="collaboration-entry-label">${icon('paperclip')}<span>Documents & échanges</span></span>
+        <span class="collaboration-entry-stats"><span>${icon('message')} ${shared.comments}</span><span>${icon('paperclip')} ${shared.attachments}</span><span>${icon('eye')} ${shared.reads}</span></span>
+      </button>
     </div>
     <button class="task-more tap" type="button" data-edit-task="${task.id}" aria-label="Modifier ${escapeHTML(task.title)}">${icon('more')}</button>
   </article>`;
@@ -353,7 +356,7 @@ function renderTasksHome(data) {
   $('#tasksHomeSummary').innerHTML = `<span><strong>${tasks.length}</strong> à faire</span>${overdue ? `<span class="is-alert"><strong>${overdue}</strong> en retard</span>` : '<span><strong>✓</strong> à jour</span>'}`;
   $('#tasksHomeList').innerHTML = tasks.length
     ? tasks.slice(0, 3).map((task) => taskCard(task, data, true)).join('')
-    : `<div class="tasks-empty-mini"><span>${icon('circle-check')}</span><div><strong>Tout est fait.</strong><p>Rien ne presse pour aujourd’hui.</p></div></div>`;
+    : `<div class="tasks-empty-mini"><span>${icon('circle-check')}</span><div><strong>Tout est fait</strong><p>Rien ne presse pour aujourd’hui.</p></div></div>`;
 }
 
 function tasksForFilter(data, filter = state.taskFilter) {
@@ -367,7 +370,7 @@ function tasksForFilter(data, filter = state.taskFilter) {
 function renderTasksDialog(data = store.getState()) {
   $$('[data-task-filter]').forEach((button) => button.classList.toggle('is-active', button.dataset.taskFilter === state.taskFilter));
   const tasks = tasksForFilter(data);
-  $('#tasksDialogList').innerHTML = tasks.length ? tasks.map((task) => taskCard(task, data)).join('') : `<div class="empty-state"><strong>Aucune tâche ici.</strong><p>Votre famille est à jour dans cette catégorie.</p><button class="primary-button tap" data-open-task>${icon('plus')}Ajouter une tâche</button></div>`;
+  $('#tasksDialogList').innerHTML = tasks.length ? tasks.map((task) => taskCard(task, data)).join('') : `<div class="empty-state"><strong>Aucune tâche ici</strong><p>Votre famille est à jour dans cette catégorie.</p><button class="primary-button tap" data-open-task>${icon('plus')}Ajouter une tâche</button></div>`;
 }
 
 function renderDayRibbon(data) {
@@ -413,7 +416,13 @@ function eventCard(event, data) {
       ${event.location ? `<span>${icon('map-pin')}${escapeHTML(event.location)}</span>` : ''}
       ${responsible ? `<span class="responsible-pill">${icon('user')}Responsable : ${escapeHTML(memberDisplayName(responsible))}</span>` : ''}
     </div>
-    <div class="event-bottom-row"><div class="event-avatars">${people.map((member) => renderAvatar(member, { title: memberDisplayName(member) })).join('')}</div><button class="collaboration-mini tap" type="button" data-collaborate-type="event" data-collaborate-id="${event.id}" aria-label="Ouvrir l'espace partagé">${icon('message')}<span>${shared.comments}</span>${icon('paperclip')}<span>${shared.attachments}</span>${icon('eye')}<span>${shared.reads}</span></button></div>
+    <div class="event-bottom-row">
+      <div class="event-avatars">${people.map((member) => renderAvatar(member, { title: memberDisplayName(member) })).join('')}</div>
+      <button class="collaboration-entry tap" type="button" data-collaborate-type="event" data-collaborate-id="${event.id}" aria-label="Ouvrir Documents et échanges">
+        <span class="collaboration-entry-label">${icon('paperclip')}<span>Documents & échanges</span></span>
+        <span class="collaboration-entry-stats"><span>${icon('message')} ${shared.comments}</span><span>${icon('paperclip')} ${shared.attachments}</span><span>${icon('eye')} ${shared.reads}</span></span>
+      </button>
+    </div>
   </article>`;
 }
 
@@ -424,7 +433,7 @@ function renderTimeline(data) {
   const events = eventsForDate(data, state.selectedDate);
   const birthdays = birthdayMembersForDate(data, state.selectedDate).filter((member) => state.activeMember === 'all' || member.id === state.activeMember);
   if (!events.length && !birthdays.length) {
-    $('#timeline').innerHTML = `<div class="empty-state"><strong>Une respiration dans la semaine.</strong><p>Aucun événement pour ce filtre. Ce temps est à vous.</p><button class="primary-button tap" data-open-event>${icon('plus')}Ajouter un moment</button></div>`;
+    $('#timeline').innerHTML = `<div class="empty-state"><strong>Une respiration dans la semaine</strong><p>Aucun événement pour ce filtre. Ce temps est à vous.</p><button class="primary-button tap" data-open-event>${icon('plus')}Ajouter un moment</button></div>`;
     return;
   }
   const birthdayCards = birthdays.map((member) => `<article class="birthday-card">${renderAvatar(member, { className: 'birthday-avatar' })}<div><span>🎂 Anniversaire</span><strong>${escapeHTML(memberDisplayName(member))}</strong><p>Une belle journée à célébrer ensemble.</p></div></article>`).join('');
@@ -539,7 +548,7 @@ function renderMonth(data) {
       <div class="month-selection-events">
         ${selectedEvents.length
           ? selectedEvents.map((event) => eventCard(event, data)).join('')
-          : `<div class="empty-state"><strong>Cette journée est libre.</strong><p>Ajoutez votre premier rendez-vous pour Nacer, Romane ou Chacha.</p><button class="primary-button tap" data-open-event>${icon('plus')}Planifier cette journée</button></div>`}
+          : `<div class="empty-state"><strong>Cette journée est libre</strong><p>Ajoutez votre premier rendez-vous pour Nacer, Romane ou Chacha.</p><button class="primary-button tap" data-open-event>${icon('plus')}Planifier cette journée</button></div>`}
       </div>
     </section>`;
 }
@@ -978,9 +987,9 @@ function renderCollaborationDialog() {
   if (!parent) return;
   const items = contentItems(data, parentType, parentId);
   const user = store.getCurrentUser();
-  $('#collaborationTypeLabel').textContent = parentType === 'event' ? 'Rendez-vous partagé' : 'Tâche partagée';
+  $('#collaborationTypeLabel').textContent = 'Documents & échanges';
   $('#collaborationTitle').textContent = parent.title;
-  $('#collaborationSubtitle').textContent = parentType === 'event' ? `${parent.allDay ? 'Toute la journée' : parent.time} · ${capitalize(longDate.format(parseISO(parent.date)))}` : taskDueLabel(parent);
+  $('#collaborationSubtitle').textContent = parentType === 'event' ? `Rendez-vous · ${parent.allDay ? 'Toute la journée' : parent.time} · ${capitalize(longDate.format(parseISO(parent.date)))}` : `Tâche · ${taskDueLabel(parent)}`;
 
   const reactionTypes = ['👍','❤️','✅'];
   $('#collaborationReactions').innerHTML = reactionTypes.map((reaction) => {
@@ -1075,10 +1084,10 @@ function renderSearchResults() {
   if ($('#globalSearchInput').value.trim().length < 2) {
     const data = store.getState();
     const labels = { created:'a créé', updated:'a modifié', deleted:'a supprimé', completed:'a terminé', reopened:'a rouvert', commented:'a commenté', attached:'a joint un fichier', shopping_added:'a ajouté aux courses', shopping_checked:'a pris', shopping_updated:'a modifié une course', shopping_deleted:'a retiré une course', routine_created:'a créé une routine', routine_updated:'a modifié une routine', routine_deleted:'a supprimé une routine' };
-    box.innerHTML = data.activity?.length ? `<div class="search-recent-title"><strong>Activité récente</strong><small>Dernières actions de la famille</small></div>${data.activity.slice(0, 12).map((item) => `<div class="search-activity-row"><span class="activity-dot"></span><div><strong>${escapeHTML(userDisplayName(data, item.actorUserId))} ${escapeHTML(labels[item.action] || 'a mis à jour')}</strong><small>${escapeHTML(item.summary || 'AGENDA')} · ${formatActivityTime(item.createdAt)}</small></div></div>`).join('')}` : `<div class="empty-state"><strong>Recherche dans toute la famille.</strong><p>Écris au moins deux lettres. L’activité récente apparaîtra ici dès les prochaines modifications.</p></div>`;
+    box.innerHTML = data.activity?.length ? `<div class="search-recent-title"><strong>Activité récente</strong><small>Dernières actions de la famille</small></div>${data.activity.slice(0, 12).map((item) => `<div class="search-activity-row"><span class="activity-dot"></span><div><strong>${escapeHTML(userDisplayName(data, item.actorUserId))} ${escapeHTML(labels[item.action] || 'a mis à jour')}</strong><small>${escapeHTML(item.summary || 'AGENDA')} · ${formatActivityTime(item.createdAt)}</small></div></div>`).join('')}` : `<div class="empty-state"><strong>Recherche dans toute la famille</strong><p>Écris au moins deux lettres. L’activité récente apparaîtra ici dès les prochaines modifications.</p></div>`;
     return;
   }
-  box.innerHTML = results.length ? results.map((item) => `<button class="search-result tap" type="button" data-search-result-type="${item.type}" data-search-result-id="${item.id}" data-search-parent-type="${item.parentType}" data-search-parent-id="${item.parentId}"><span class="search-result-icon">${item.type === 'event' ? icon('calendar') : item.type === 'task' ? icon('clipboard') : item.type === 'shopping' ? icon('cart') : item.type === 'routine' ? icon('repeat') : item.type === 'attachment' ? icon('paperclip') : item.type === 'activity' ? icon('history') : icon('message')}</span><div><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(item.detail)}</small></div>${icon('chevron-right')}</button>`).join('') : `<div class="empty-state"><strong>Aucun résultat.</strong><p>Essaie un autre mot.</p></div>`;
+  box.innerHTML = results.length ? results.map((item) => `<button class="search-result tap" type="button" data-search-result-type="${item.type}" data-search-result-id="${item.id}" data-search-parent-type="${item.parentType}" data-search-parent-id="${item.parentId}"><span class="search-result-icon">${item.type === 'event' ? icon('calendar') : item.type === 'task' ? icon('clipboard') : item.type === 'shopping' ? icon('cart') : item.type === 'routine' ? icon('repeat') : item.type === 'attachment' ? icon('paperclip') : item.type === 'activity' ? icon('history') : icon('message')}</span><div><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(item.detail)}</small></div>${icon('chevron-right')}</button>`).join('') : `<div class="empty-state"><strong>Aucun résultat</strong><p>Essaie un autre mot.</p></div>`;
 }
 
 function openSearchDialog() {

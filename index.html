@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=3.7.0">
+  <link rel="stylesheet" href="styles.css?v=3.7.1">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -585,10 +585,15 @@
     <section class="account-sheet collaboration-sheet">
       <div class="sheet-handle"></div>
       <header class="sheet-header">
-        <div><p class="eyebrow" id="collaborationTypeLabel">Espace partagé</p><h2 id="collaborationTitle">Collaboration</h2><small class="hub-count" id="collaborationSubtitle"></small></div>
+        <div><p class="eyebrow" id="collaborationTypeLabel">Documents & échanges</p><h2 id="collaborationTitle">Élément partagé</h2><small class="hub-count" id="collaborationSubtitle"></small></div>
         <button type="button" class="icon-button tap" data-close-collaboration aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
       </header>
       <input type="hidden" id="collaborationParentType"><input type="hidden" id="collaborationParentId">
+      <label class="collaboration-upload-hero tap" for="collaborationAttachmentInput">
+        <span class="collaboration-upload-icon"><svg><use href="#i-paperclip"></use></svg></span>
+        <span class="collaboration-upload-copy"><strong>Ajouter une photo ou un PDF</strong><small>Photo, document ou justificatif partagé avec la famille</small></span>
+        <svg class="collaboration-upload-chevron"><use href="#i-chevron-right"></use></svg>
+      </label>
       <div class="collaboration-reactions" id="collaborationReactions" aria-label="Réactions"></div>
       <div class="collaboration-seen" id="collaborationSeen"></div>
       <section class="collaboration-section">
@@ -597,9 +602,9 @@
         <form class="comment-form" id="commentForm"><textarea id="commentInput" maxlength="1000" rows="2" required placeholder="Écrire un message à la famille…"></textarea><button class="primary-button tap" type="submit">Envoyer</button></form>
       </section>
       <section class="collaboration-section">
-        <div class="collaboration-section-title"><span><svg><use href="#i-paperclip"></use></svg>Pièces jointes</span><small id="attachmentCount"></small></div>
+        <div class="collaboration-section-title"><span><svg><use href="#i-paperclip"></use></svg>Photos & PDF</span><small id="attachmentCount"></small></div>
         <div class="attachment-list" id="attachmentList"></div>
-        <label class="secondary-button tap attachment-picker" for="collaborationAttachmentInput"><svg><use href="#i-paperclip"></use></svg>Ajouter une photo ou un PDF</label>
+        <label class="secondary-button tap attachment-picker" for="collaborationAttachmentInput"><svg><use href="#i-paperclip"></use></svg>Ajouter un autre fichier</label>
         <input id="collaborationAttachmentInput" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden>
       </section>
       <section class="collaboration-section">
@@ -617,7 +622,7 @@
         <button type="button" class="icon-button tap" data-close-search aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
       </header>
       <label class="search-field"><svg><use href="#i-search"></use></svg><input id="globalSearchInput" type="search" autocomplete="off" placeholder="Rendez-vous, tâche, course, commentaire…"></label>
-      <div class="search-results" id="globalSearchResults"><div class="empty-state"><strong>Recherche dans toute la famille.</strong><p>Commence à écrire pour retrouver un rendez-vous, une tâche, une course ou une routine.</p></div></div>
+      <div class="search-results" id="globalSearchResults"><div class="empty-state"><strong>Recherche dans toute la famille</strong><p>Commence à écrire pour retrouver un rendez-vous, une tâche, une course ou une routine.</p></div></div>
     </section>
   </dialog>
 
@@ -701,6 +706,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=3.7.0"></script>
+  <script type="module" src="js/app.js?v=3.7.1"></script>
 </body>
 </html>
