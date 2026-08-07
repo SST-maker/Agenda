@@ -632,29 +632,36 @@ body.is-authenticating { overflow: hidden; }
 .member-edit-actions .primary-button { flex: 1; justify-content: center; }
 input[type="color"] { min-height: 48px; padding: 5px; cursor: pointer; }
 
-/* Les actions rapides restent compactes sur mobile : plus proches d'une app native. */
+/* v3.3.1 — aucun scroll horizontal pour les actions clés sur mobile. */
 @media (max-width: 699px) {
+  .view, .hero-card, .hero-content, .quick-actions, .quick-action-card, .hero-glance, .hero-chip { min-width: 0; max-width: 100%; }
   .quick-actions {
-    display: flex;
-    gap: 9px;
-    overflow-x: auto;
-    margin: 16px -18px 0;
-    padding: 3px 18px 9px;
-    scrollbar-width: none;
-    scroll-snap-type: x proximity;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    overflow: visible;
+    margin: 15px 0 0;
+    padding: 0;
   }
-  .quick-actions::-webkit-scrollbar { display: none; }
   .quick-action-card {
-    flex: 0 0 150px;
-    min-height: 118px;
-    scroll-snap-align: start;
-    border-radius: 24px;
+    min-width: 0;
+    min-height: 82px;
+    padding: 10px 5px;
+    border-radius: 18px;
+    place-items: center;
+    align-content: center;
+    text-align: center;
+    gap: 6px;
   }
+  .quick-action-icon { width: 34px; height: 34px; border-radius: 12px; }
+  .quick-action-icon svg { width: 17px; height: 17px; }
+  .quick-action-card strong { font-size: .72rem; line-height: 1.1; white-space: normal; }
+  .quick-action-card small { display: none; }
   .hero-card { min-height: 330px; }
-  .hero-glance { display: flex; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
-  .hero-glance::-webkit-scrollbar { display: none; }
-  .hero-chip { flex: 0 0 auto; }
-  .family-name-row, .family-identity-fields { grid-template-columns: minmax(0,1fr) 78px; }
+  .hero-content { max-width: 100%; }
+  .hero-glance { display: grid; grid-template-columns: minmax(0,1fr); overflow: visible; gap: 7px; }
+  .hero-chip { width: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: normal; line-height: 1.25; padding: 9px 10px; }
+  .family-name-row, .family-identity-fields { grid-template-columns: minmax(0,1fr) 72px; }
   .member-edit-actions { display: grid; }
 }
 
@@ -700,3 +707,47 @@ input[type="color"] { min-height: 48px; padding: 5px; cursor: pointer; }
 }
 .birthday-line strong { color: #B57929; }
 .birthday-preview { color: #B57929; }
+
+
+/* v3.3.1 — photo de famille + garde-fous responsive */
+.main, .view, .section-block, .hero-card, .family-cover-card, .family-pulse-card { min-width: 0; }
+.hero-summary, .hero-chip, .family-cover-copy { overflow-wrap: anywhere; }
+.family-cover-card {
+  position: relative;
+  min-height: 230px;
+  margin: 20px 0 16px;
+  border-radius: 30px;
+  overflow: hidden;
+  color: white;
+  background: linear-gradient(145deg, var(--petrol), var(--forest));
+  box-shadow: var(--shadow-md);
+}
+.family-cover-media { position: absolute; inset: 0; display: grid; place-items: center; }
+.family-cover-media.has-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.family-cover-placeholder { display: grid; justify-items: center; gap: 8px; color: rgba(255,255,255,.88); }
+.family-cover-placeholder span { font-size: 3.5rem; filter: drop-shadow(0 8px 20px rgba(0,0,0,.12)); }
+.family-cover-placeholder small { font-size: .72rem; font-weight: 760; letter-spacing: .02em; }
+.family-cover-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,31,25,.06) 20%, rgba(8,31,25,.76) 100%); pointer-events: none; }
+.family-cover-content { position: absolute; z-index: 2; left: 20px; right: 70px; bottom: 19px; min-width: 0; }
+.family-cover-content .card-kicker { color: rgba(255,255,255,.7); }
+.family-cover-content h2 { color: white; margin-top: 4px; }
+.family-cover-content p:last-child { margin: 7px 0 0; color: rgba(255,255,255,.78); font-size: .75rem; }
+.family-cover-edit { position: absolute; z-index: 3; right: 15px; bottom: 16px; width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.28); border-radius: 50%; color: white; background: rgba(255,255,255,.16); backdrop-filter: blur(12px); cursor: pointer; }
+.family-photo-setting { display: grid; grid-template-columns: 82px minmax(0,1fr); gap: 13px; align-items: center; margin: 14px 0; padding: 12px; border-radius: 18px; background: rgba(255,255,255,.65); border: 1px solid rgba(34,74,84,.08); }
+.family-photo-preview { width: 82px; aspect-ratio: 1.35; border-radius: 15px; overflow: hidden; display: grid; place-items: center; background: linear-gradient(145deg, rgba(34,74,84,.13), rgba(14,57,42,.16)); color: var(--forest); }
+.family-photo-preview span { font-size: 2rem; }
+.family-photo-preview.has-photo img { width: 100%; height: 100%; object-fit: cover; }
+.family-photo-setting-copy { min-width: 0; display: grid; gap: 3px; }
+.family-photo-setting-copy strong { color: var(--forest); font-size: .82rem; }
+.family-photo-setting-copy small { color: var(--muted); font-size: .64rem; line-height: 1.35; }
+.family-photo-setting-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 7px; }
+.family-photo-setting-actions .secondary-button, .family-photo-setting-actions .danger-text-button { min-height: 36px; padding: 8px 10px; font-size: .67rem; }
+@media (max-width: 380px) {
+  .quick-actions { gap: 5px; }
+  .quick-action-card { padding-inline: 3px; }
+  .quick-action-card strong { font-size: .66rem; }
+  .family-cover-card { min-height: 205px; border-radius: 25px; }
+  .family-cover-content { left: 16px; bottom: 16px; right: 62px; }
+  .family-photo-setting { grid-template-columns: 68px minmax(0,1fr); }
+  .family-photo-preview { width: 68px; }
+}

@@ -1,4 +1,4 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.3.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.3.1';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -107,6 +107,7 @@ function render() {
   renderInsights(data);
   renderAgenda(data);
   renderFamily(data);
+  renderFamilyCover(data);
   renderFocus(data);
   renderDialogMembers(data);
 }
@@ -330,6 +331,24 @@ function moveMonth(direction) {
   state.selectedDate = toISO(target);
   state.weekAnchor = startOfWeek(target);
   render();
+}
+
+function renderFamilyCover(data) {
+  const family = data.family || {};
+  const media = $('#familyCoverMedia');
+  const name = familyDisplayName(data);
+  $('#familyCoverName').textContent = name;
+  const isAdmin = store.getCurrentUser()?.role === 'admin';
+  $('#familyCoverEditButton').hidden = !isAdmin;
+  if (family.photoUrl) {
+    media.classList.add('has-photo');
+    media.innerHTML = `<img src="${escapeHTML(family.photoUrl)}" alt="Photo de ${escapeHTML(name)}">`;
+    $('#familyCoverCopy').textContent = `${data.members.length} membre${data.members.length > 1 ? 's' : ''} · votre espace familial partagé`;
+  } else {
+    media.classList.remove('has-photo');
+    media.innerHTML = `<div class="family-cover-placeholder"><span>${escapeHTML(family.symbol || '🌿')}</span><small>${isAdmin ? 'Ajoutez votre photo de famille' : 'Photo de famille à venir'}</small></div>`;
+    $('#familyCoverCopy').textContent = isAdmin ? 'Ajoutez une photo qui vous ressemble pour personnaliser cet espace.' : 'Votre famille peut personnaliser cet espace avec une photo commune.';
+  }
 }
 
 function renderFamily(data) {
@@ -607,6 +626,15 @@ function renderAccount() {
   $('#familyNameInput').value = data.family?.name || 'Famille Hamadi';
   $('#familySymbolInput').value = data.family?.symbol || '🌿';
   $('#familyIdentityPanel').hidden = user.role !== 'admin';
+  const familyPhotoPreview = $('#familyPhotoPreview');
+  if (data.family?.photoUrl) {
+    familyPhotoPreview.classList.add('has-photo');
+    familyPhotoPreview.innerHTML = `<img src="${escapeHTML(data.family.photoUrl)}" alt="Photo de ${escapeHTML(familyDisplayName(data))}">`;
+  } else {
+    familyPhotoPreview.classList.remove('has-photo');
+    familyPhotoPreview.innerHTML = `<span>${escapeHTML(data.family?.symbol || '🌿')}</span>`;
+  }
+  $('#removeFamilyPhotoButton').hidden = !data.family?.photoUrl;
   const accountButton = $('#accountButton');
   accountButton.classList.toggle('with-avatar', Boolean(user.avatarUrl));
   accountButton.innerHTML = user.avatarUrl
@@ -722,6 +750,71 @@ async function removeProfilePhoto() {
   } finally {
     setProfilePhotoBusy(false);
   }
+}
+
+async function optimizeFamilyPhoto(file) {
+  if (!file || !file.type.startsWith('image/')) throw new Error('Choisis une image valide.');
+  const source = await fileToDataUrl(file);
+  const image = await loadImage(source);
+  const width = 960;
+  const height = 600;
+  const targetRatio = width / height;
+  const sourceRatio = image.width / image.height;
+  let sx = 0; let sy = 0; let sw = image.width; let sh = image.height;
+  if (sourceRatio > targetRatio) {
+    sw = image.height * targetRatio;
+    sx = (image.width - sw) / 2;
+  } else {
+    sh = image.width / targetRatio;
+    sy = (image.height - sh) / 2;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const context = canvas.getContext('2d');
+  context.drawImage(image, sx, sy, sw, sh, 0, 0, width, height);
+  let quality = .78;
+  let output = canvas.toDataURL('image/jpeg', quality);
+  while (output.length > 650000 && quality > .46) {
+    quality -= .08;
+    output = canvas.toDataURL('image/jpeg', quality);
+  }
+  if (output.length > 700000) throw new Error('Cette photo reste trop lourde. Essaie une image plus légère.');
+  return output;
+}
+
+async function handleFamilyPhotoSelection(event) {
+  const file = event.currentTarget.files?.[0];
+  if (!file) return;
+  const label = document.querySelector('label[for="familyPhotoInput"]');
+  label?.classList.add('is-busy');
+  event.currentTarget.disabled = true;
+  try {
+    const photoUrl = await optimizeFamilyPhoto(file);
+    await store.updateFamilyPhoto(photoUrl);
+    render();
+    renderAccount();
+    showToast('Photo de famille mise à jour.');
+  } catch (error) {
+    showToast(error.message || 'Impossible de mettre à jour la photo de famille.');
+  } finally {
+    event.currentTarget.value = '';
+    event.currentTarget.disabled = false;
+    label?.classList.remove('is-busy');
+  }
+}
+
+async function removeFamilyPhoto() {
+  if (!confirm('Retirer la photo de famille ?')) return;
+  const button = $('#removeFamilyPhotoButton');
+  button.disabled = true;
+  try {
+    await store.updateFamilyPhoto(null);
+    render();
+    renderAccount();
+    showToast('Photo de famille retirée.');
+  } catch (error) {
+    showToast(error.message || 'Impossible de retirer la photo de famille.');
+  } finally { button.disabled = false; }
 }
 
 async function saveFamilyIdentity() {
@@ -996,6 +1089,9 @@ function setupEvents() {
   $('#inviteButton').addEventListener('click', createInvitation);
   $('#copyInviteButton').addEventListener('click', copyInviteLink);
   $('#saveFamilyIdentityButton').addEventListener('click', saveFamilyIdentity);
+  $('#familyPhotoInput').addEventListener('change', handleFamilyPhotoSelection);
+  $('#removeFamilyPhotoButton').addEventListener('click', removeFamilyPhoto);
+  $('#familyCoverEditButton').addEventListener('click', openAccountDialog);
   $('#profilePhotoInput').addEventListener('change', handleProfilePhotoSelection);
   $('#removeProfilePhotoButton').addEventListener('click', removeProfilePhoto);
   $('#saveMemberPresentationButton').addEventListener('click', saveMemberPresentation);

@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=3.3.0">
+  <link rel="stylesheet" href="styles.css?v=3.3.1">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -287,6 +287,17 @@
           <button class="icon-button tap" id="addMemberButton" aria-label="Ajouter un membre"><svg><use href="#i-plus"></use></svg></button>
         </div>
 
+        <section class="family-cover-card reveal" id="familyCoverCard" aria-label="Photo de la famille">
+          <div class="family-cover-media" id="familyCoverMedia"></div>
+          <div class="family-cover-shade"></div>
+          <div class="family-cover-content">
+            <p class="card-kicker">Notre famille</p>
+            <h2 id="familyCoverName">Famille Hamadi</h2>
+            <p id="familyCoverCopy">Ajoutez une photo qui vous ressemble pour personnaliser cet espace.</p>
+          </div>
+          <button class="family-cover-edit tap" id="familyCoverEditButton" type="button" aria-label="Modifier la photo de famille"><svg><use href="#i-camera"></use></svg></button>
+        </section>
+
         <section class="family-pulse-card reveal">
           <div class="pulse-orbit" aria-hidden="true">
             <span class="orbit-core"><img src="assets/brand/logo-symbol-light.svg" alt=""></span>
@@ -397,6 +408,18 @@
           <label class="field"><span>Nom</span><input id="familyNameInput" maxlength="100" placeholder="Famille Hamadi"></label>
           <label class="field family-symbol-field"><span>Symbole</span><input id="familySymbolInput" maxlength="8" placeholder="🌿"></label>
         </div>
+        <div class="family-photo-setting">
+          <div class="family-photo-preview" id="familyPhotoPreview"><span>🌿</span></div>
+          <div class="family-photo-setting-copy">
+            <strong>Photo de famille</strong>
+            <small>Une photo commune, distincte des photos de profil.</small>
+            <div class="family-photo-setting-actions">
+              <label class="secondary-button tap file-picker-button" for="familyPhotoInput"><svg><use href="#i-camera"></use></svg>Choisir</label>
+              <button class="danger-text-button tap" id="removeFamilyPhotoButton" type="button"><svg><use href="#i-trash"></use></svg>Retirer</button>
+            </div>
+          </div>
+          <input id="familyPhotoInput" type="file" accept="image/*" hidden>
+        </div>
         <button class="secondary-button tap" id="saveFamilyIdentityButton" type="button">Enregistrer l’identité</button>
       </section>
       <section class="profile-photo-panel">
@@ -447,6 +470,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=3.3.0"></script>
+  <script type="module" src="js/app.js?v=3.3.1"></script>
 </body>
 </html>

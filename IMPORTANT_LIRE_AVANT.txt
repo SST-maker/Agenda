@@ -1,0 +1,14 @@
+AGENDA v3.3.1 — MISE À JOUR DE TON AGENDA EXISTANT
+
+1) Supabase > SQL Editor : exécute supabase/upgrade_v3_3_1_family_photo_responsive.sql
+2) Sur GitHub, remplace uniquement les fichiers présents dans ce ZIP.
+3) Ce pack ne contient PAS js/config.js : ta configuration Supabase actuelle reste donc intacte.
+4) Commit sur main et attends le déploiement GitHub Pages.
+5) Recharge l’application. Si nécessaire, ferme/réouvre la PWA une fois pour que le nouveau service worker prenne la main.
+
+Nouveautés :
+- vraie photo de famille commune ;
+- l’admin peut l’ajouter, la remplacer ou la retirer ;
+- photo visible dans l’onglet Famille ;
+- « Prochain… » et le badge Famille ne scrollent plus horizontalement ;
+- Ajouter / Vue mois / Mon profil tiennent ensemble sur la largeur du mobile.

@@ -34,7 +34,7 @@ export const addDays = (date, days) => {
 function createSeed() {
   return {
     version: DATA_VERSION,
-    family: { id: null, name: 'Famille Hamadi', symbol: '🌿' },
+    family: { id: null, name: 'Famille Hamadi', symbol: '🌿', photoUrl: null },
     settings: { quietMode: false },
     members: [
       { id: 'local-nacer', name: 'Nacer', nickname: '', role: 'Papa', initials: 'NA', color: '#224A54', avatarUrl: null },
@@ -439,7 +439,7 @@ class AgendaStore extends EventTarget {
 
     const familyId = membershipResult.data.family_id;
     const [familyResult, membersResult, eventsResult] = await Promise.all([
-      this.supabase.from('families').select('id, name, symbol, quiet_mode, invite_expires_at').eq('id', familyId).single(),
+      this.supabase.from('families').select('id, name, symbol, photo_url, quiet_mode, invite_expires_at').eq('id', familyId).single(),
       this.supabase.from('members').select('*').eq('family_id', familyId).order('sort_order'),
       this.supabase.from('events').select('*').eq('family_id', familyId).order('event_date').order('event_time')
     ]);
@@ -456,7 +456,7 @@ class AgendaStore extends EventTarget {
     this.safeSet('sb-offline-session-seen', JSON.stringify(this.currentUser));
     this.state = {
       version: DATA_VERSION,
-      family: { id: familyResult.data.id, name: familyResult.data.name, symbol: familyResult.data.symbol || '🌿', inviteExpiresAt: familyResult.data.invite_expires_at },
+      family: { id: familyResult.data.id, name: familyResult.data.name, symbol: familyResult.data.symbol || '🌿', photoUrl: familyResult.data.photo_url || null, inviteExpiresAt: familyResult.data.invite_expires_at },
       settings: { quietMode: Boolean(familyResult.data.quiet_mode) },
       members: membersResult.data.map(mapMember),
       events: eventsResult.data.map(mapEvent),
@@ -577,6 +577,15 @@ class AgendaStore extends EventTarget {
     if (error) throw error;
     await this.pullRemote();
     this.emit('family-identity-updated');
+  }
+
+  async updateFamilyPhoto(photoUrl) {
+    if (!navigator.onLine) throw new Error('Une connexion Internet est nécessaire.');
+    const normalized = photoUrl || null;
+    const { error } = await this.supabase.rpc('update_family_photo', { p_photo_url: normalized });
+    if (error) throw error;
+    await this.pullRemote();
+    this.emit('family-photo-updated');
   }
 
   async updateMemberPresentation(memberId, { nickname = '', color, avatarUrl, birthday = '' }) {
