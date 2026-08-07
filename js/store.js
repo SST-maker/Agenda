@@ -1164,7 +1164,7 @@ class AgendaStore extends EventTarget {
   exportData() {
     const payload = {
       backupVersion: 2,
-      appVersion: '4.2.1',
+      appVersion: '4.3.0',
       exportedAt: new Date().toISOString(),
       note: 'Les fichiers photo/PDF joints ne sont pas embarqués dans ce JSON.',
       family: this.state.family,

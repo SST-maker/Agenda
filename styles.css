@@ -2124,3 +2124,30 @@ html[data-theme="dark"] .duration-chip.is-active { background:var(--gold); color
 @media (max-width:350px) {
   .context-chip { font-size:.54rem; padding-inline:4px; }
 }
+
+
+/* v4.3 — création naturelle + accueil adaptatif */
+.natural-add {
+  border:1px solid rgba(199,154,92,.28); border-radius:24px; padding:16px; margin:4px 0 14px;
+  background:linear-gradient(145deg, rgba(246,238,216,.72), rgba(255,255,255,.88));
+  box-shadow:0 14px 36px rgba(48,67,58,.07); position:relative; overflow:hidden;
+}
+.natural-add::after { content:""; position:absolute; width:120px; height:120px; right:-48px; top:-60px; border-radius:50%; background:radial-gradient(circle, rgba(199,154,92,.19), transparent 70%); pointer-events:none; }
+.natural-add-heading { display:flex; align-items:center; gap:10px; margin-bottom:12px; position:relative; z-index:1; }
+.natural-add-heading > div { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.natural-add-heading strong { color:var(--forest); font-size:.86rem; }
+.natural-add-heading small { color:var(--muted); font-size:.64rem; }
+.natural-add-spark { width:36px; height:36px; border-radius:13px; display:grid; place-items:center; background:rgba(199,154,92,.13); color:var(--gold); flex:0 0 auto; }
+.natural-add-spark svg { width:17px; height:17px; }
+.natural-add-input-row { display:grid; grid-template-columns:minmax(0,1fr) 46px; gap:8px; position:relative; z-index:1; }
+.natural-add-input-row input { width:100%; min-width:0; height:46px; border-radius:15px; border:1px solid rgba(34,74,84,.13); background:rgba(255,255,255,.8); color:var(--ink); padding:0 13px; font-size:16px; outline:none; }
+.natural-add-input-row input:focus { border-color:rgba(199,154,92,.65); box-shadow:0 0 0 4px rgba(199,154,92,.09); }
+.natural-add-submit { width:46px; height:46px; border:0; border-radius:15px; display:grid; place-items:center; background:var(--gold); color:white; box-shadow:0 8px 22px rgba(199,154,92,.25); }
+.natural-add-submit svg { width:18px; height:18px; }
+.natural-add-example { margin:8px 3px 0; color:var(--muted); font-size:.61rem; line-height:1.35; }
+.quick-add-divider { display:flex; align-items:center; gap:9px; color:var(--muted); font-size:.58rem; text-transform:uppercase; letter-spacing:.14em; margin:3px 0 11px; }
+.quick-add-divider::before,.quick-add-divider::after { content:""; height:1px; flex:1; background:rgba(34,74,84,.09); }
+html[data-theme="dark"] .natural-add { background:linear-gradient(145deg, rgba(26,42,36,.94), rgba(17,29,25,.9)); border-color:rgba(199,154,92,.2); }
+html[data-theme="dark"] .natural-add-input-row input { background:rgba(8,18,15,.66); border-color:rgba(237,226,201,.11); }
+html[data-theme="dark"] .natural-add-heading strong { color:var(--ink); }
+@media (max-width:430px) { .natural-add { padding:14px; border-radius:21px; } .natural-add-heading small { font-size:.60rem; } }

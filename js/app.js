@@ -1,5 +1,45 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.2.1';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.2.1';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.3.0';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.3.0';
+
+
+// iOS/PWA can restore the previous vertical scroll position when the app is relaunched.
+// AGENDA deliberately starts the Today screen at the top, while preserving scroll inside
+// dialogs and on the other main views.
+try {
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+} catch {}
+
+let launchScrollResetDone = false;
+
+function scrollPageToTop() {
+  const scroller = document.scrollingElement || document.documentElement;
+  try { scroller.scrollTo({ top: 0, left: 0, behavior: 'auto' }); } catch { scroller.scrollTop = 0; }
+  try { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); } catch { window.scrollTo(0, 0); }
+}
+
+function resetInitialScrollPosition() {
+  if (launchScrollResetDone) return;
+  launchScrollResetDone = true;
+  scrollPageToTop();
+  requestAnimationFrame(scrollPageToTop);
+  setTimeout(scrollPageToTop, 80);
+  setTimeout(scrollPageToTop, 320);
+}
+
+function setupReturnToTopOnResume() {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    if (state.activeView !== 'home') return;
+    if (document.querySelector('dialog[open]')) return;
+    if (document.documentElement.classList.contains('keyboard-open')) return;
+    requestAnimationFrame(scrollPageToTop);
+  });
+  window.addEventListener('pageshow', () => {
+    if (!launchScrollResetDone) return;
+    if (state.activeView !== 'home' || document.querySelector('dialog[open]')) return;
+    requestAnimationFrame(scrollPageToTop);
+  });
+}
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -170,7 +210,7 @@ function getGreeting() {
   return 'Bonsoir';
 }
 
-const APP_VERSION = '4.2.1';
+const APP_VERSION = '4.3.0';
 const VERSION_SEEN_KEY = 'agenda-version-seen';
 let temporalTimer = 0;
 let previousOnlineState = navigator.onLine;
@@ -402,6 +442,7 @@ function setupTemporalUI() {
     const group = groupForTime(new Date().toTimeString().slice(0,5));
     if (state.activeView === 'home' && state.selectedDate === toISO(new Date()) && group !== lastGroup) renderTimeline(store.getState());
     renderContextualHome(store.getState());
+    if (state.activeView === 'home') renderHeader(store.getState());
     if (state.activeView === 'daily') renderDailyHub(store.getState());
     lastGroup = group;
   };
@@ -517,8 +558,132 @@ function renderDailyHub(data = store.getState()) {
   $('#tomorrowBadge').textContent = load === 0 ? 'Calme' : load <= 3 ? 'Léger' : load <= 6 ? 'Équilibré' : 'Chargé';
 }
 
+
+const FRENCH_WEEKDAYS = { dimanche:0, lundi:1, mardi:2, mercredi:3, jeudi:4, vendredi:5, samedi:6 };
+const FRENCH_MONTHS = { janvier:0, fevrier:1, février:1, mars:2, avril:3, mai:4, juin:5, juillet:6, aout:7, août:7, septembre:8, octobre:9, novembre:10, decembre:11, décembre:11 };
+
+function nextNamedWeekday(dayIndex, reference = new Date()) {
+  const base = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate());
+  let delta = (dayIndex - base.getDay() + 7) % 7;
+  if (delta === 0 && reference.getHours() >= 20) delta = 7;
+  return addDays(base, delta);
+}
+
+function parseFrenchNaturalDate(text, now = new Date()) {
+  const lower = text.toLocaleLowerCase('fr-FR');
+  if (/\bapres[- ]?demain\b|\baprès[- ]?demain\b/.test(lower)) return addDays(now, 2);
+  if (/\bdemain\b/.test(lower)) return addDays(now, 1);
+  if (/\baujourd['’]?hui\b/.test(lower)) return now;
+  const slash = lower.match(/\b(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\b/);
+  if (slash) {
+    let year = slash[3] ? Number(slash[3]) : now.getFullYear();
+    if (year < 100) year += 2000;
+    return new Date(year, Number(slash[2]) - 1, Number(slash[1]));
+  }
+  const monthNames = Object.keys(FRENCH_MONTHS).join('|');
+  const namedDate = lower.match(new RegExp(`\\b(\\d{1,2})\\s+(${monthNames})(?:\\s+(\\d{4}))?\\b`, 'i'));
+  if (namedDate) {
+    const month = FRENCH_MONTHS[namedDate[2]];
+    let year = namedDate[3] ? Number(namedDate[3]) : now.getFullYear();
+    let date = new Date(year, month, Number(namedDate[1]));
+    if (!namedDate[3] && date < new Date(now.getFullYear(), now.getMonth(), now.getDate())) date = new Date(year + 1, month, Number(namedDate[1]));
+    return date;
+  }
+  for (const [name, index] of Object.entries(FRENCH_WEEKDAYS)) if (new RegExp(`\\b${name}\\b`, 'i').test(lower)) return nextNamedWeekday(index, now);
+  return now;
+}
+
+function parseNaturalDuration(text) {
+  const lower = text.toLocaleLowerCase('fr-FR');
+  let match = lower.match(/\b(?:pendant|durant)\s+(\d{1,2})\s*h(?:eures?)?\s*(\d{1,2})?\b/);
+  if (match) return Math.max(5, Number(match[1]) * 60 + Number(match[2] || 0));
+  match = lower.match(/\b(?:pendant|durant)\s+(\d{1,3})\s*(?:min|mins|minutes)\b/);
+  if (match) return Math.max(5, Number(match[1]));
+  match = lower.match(/\b(?:pendant|durant)\s+(\d+(?:[.,]\d+)?)\s*(?:heure|heures)\b/);
+  if (match) return Math.max(5, Math.round(Number(match[1].replace(',', '.')) * 60));
+  return 60;
+}
+
+function parseNaturalTime(text, now = new Date()) {
+  const lower = text.toLocaleLowerCase('fr-FR');
+  const withoutDuration = lower
+    .replace(/\b(?:pendant|durant)\s+\d{1,2}\s*h(?:eures?)?\s*\d{0,2}\b/g, ' ')
+    .replace(/\b(?:pendant|durant)\s+\d+(?:[.,]\d+)?\s*(?:heure|heures|min|mins|minutes)\b/g, ' ');
+  const match = withoutDuration.match(/(?:^|\s)(?:à|vers)?\s*(\d{1,2})(?:\s*(?:h|:)\s*(\d{0,2}))\b/i);
+  if (match) {
+    const h = Math.min(23, Number(match[1]));
+    const m = Math.min(59, Number(match[2] || 0));
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+  const rounded = new Date(now.getTime() + 30 * 60000);
+  rounded.setMinutes(Math.ceil(rounded.getMinutes() / 15) * 15, 0, 0);
+  return rounded.toTimeString().slice(0,5);
+}
+
+function naturalCategory(text) {
+  const lower = text.toLocaleLowerCase('fr-FR');
+  if (/(dentiste|docteur|médecin|medecin|pédiatre|pediatre|hopital|hôpital|kiné|kine|santé|sante)/.test(lower)) return 'health';
+  if (/(école|ecole|collège|college|lycée|lycee|crèche|creche|classe|maîtresse|maitresse)/.test(lower)) return 'school';
+  if (/(travail|réunion|reunion|bureau|client|formation)/.test(lower)) return 'work';
+  if (/(sport|foot|football|gym|piscine|judo|karaté|karate|tennis)/.test(lower)) return 'sport';
+  if (/(maison|ménage|menage|artisan|plombier|électricien|electricien)/.test(lower)) return 'home';
+  return 'family';
+}
+
+function parseNaturalEventText(raw, data = store.getState()) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  const now = new Date();
+  const date = parseFrenchNaturalDate(text, now);
+  const time = parseNaturalTime(text, now);
+  const duration = parseNaturalDuration(text);
+  const lower = text.toLocaleLowerCase('fr-FR');
+  const mentioned = (data.members || []).filter((member) => {
+    const names = [member.name, member.nickname].filter(Boolean).map((v) => String(v).toLocaleLowerCase('fr-FR'));
+    return names.some((name) => name.length > 1 && lower.includes(name));
+  });
+  let responsible = null;
+  for (const member of data.members || []) {
+    const names = [member.name, member.nickname].filter(Boolean).map((v) => String(v).toLocaleLowerCase('fr-FR'));
+    if (names.some((name) => new RegExp(`\\b(?:avec|par)\\s+${name.replace(/[.*+?^${}()|[\\]\\]/g,'\\$&')}\\b`, 'i').test(lower))) { responsible = member; break; }
+  }
+  let title = text
+    .replace(/\b(?:aujourd['’]?hui|demain|après[- ]?demain|apres[- ]?demain)\b/ig, ' ')
+    .replace(/\b(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\b/ig, ' ')
+    .replace(/\b\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?\b/g, ' ')
+    .replace(/\b\d{1,2}\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)(?:\s+\d{4})?\b/ig, ' ')
+    .replace(/\b(?:pendant|durant)\s+\d+(?:[.,]\d+)?\s*(?:h(?:eures?)?\s*\d*|heure?s?|min(?:s|utes)?)\b/ig, ' ')
+    .replace(/(?:^|\s)(?:à|vers)?\s*\d{1,2}(?:\s*(?:h|:)\s*\d{0,2})\b/ig, ' ')
+    .replace(/\b(?:avec|par)\s+[\p{L}'’-]+\b/giu, ' ')
+    .replace(/\s{2,}/g, ' ').replace(/^[,;:\-\s]+|[,;:\-\s]+$/g, '').trim();
+  if (!title) title = 'Nouveau moment';
+  return { title: title.charAt(0).toUpperCase() + title.slice(1), date: toISO(date), time, duration, category: naturalCategory(text), memberIds: mentioned.map((m) => m.id), responsibleMemberId: responsible?.id || '' };
+}
+
+function prepareNaturalEvent() {
+  const input = $('#naturalEventInput');
+  const parsed = parseNaturalEventText(input?.value || '');
+  if (!parsed) { showToast('Écris le rendez-vous comme tu le dirais naturellement'); input?.focus(); return; }
+  closeQuickAddDialog();
+  openEventDialog();
+  const form = $('#eventForm');
+  form.elements.title.value = parsed.title;
+  form.elements.date.value = parsed.date;
+  form.elements.time.value = parsed.time;
+  setEventEndFromDuration(parsed.duration);
+  form.elements.category.value = parsed.category;
+  if (parsed.responsibleMemberId) form.elements.responsibleMemberId.value = parsed.responsibleMemberId;
+  if (parsed.memberIds.length) form.querySelectorAll('input[name="memberIds"]').forEach((checkbox) => { checkbox.checked = parsed.memberIds.includes(checkbox.value); });
+  state.selectedDate = parsed.date;
+  state.weekAnchor = startOfWeek(parseISO(parsed.date));
+  showToast('AGENDA a préparé le rendez-vous · vérifie puis valide');
+  window.setTimeout(() => form.elements.title.focus(), 120);
+}
+
 function openQuickAddDialog() {
   $('#quickAddDialog')?.showModal();
+  const input = $('#naturalEventInput');
+  if (input) input.value = '';
   vibration();
 }
 function closeQuickAddDialog() { if ($('#quickAddDialog')?.open) $('#quickAddDialog').close(); }
@@ -526,7 +691,7 @@ function closeQuickAddDialog() { if ($('#quickAddDialog')?.open) $('#quickAddDia
 function announceVersionIfNeeded() {
   const previous = localStorage.getItem(VERSION_SEEN_KEY);
   localStorage.setItem(VERSION_SEEN_KEY, APP_VERSION);
-  if (previous && previous !== APP_VERSION) window.setTimeout(() => showToast('AGENDA 4.2 est prête ✨'), 900);
+  if (previous && previous !== APP_VERSION) window.setTimeout(() => showToast('AGENDA 4.3 est prête ✨'), 900);
 }
 
 // Rendu central : chaque vue lit le même état local-first.
@@ -670,6 +835,25 @@ async function forceSyncNow() {
   finally { button.disabled = false; }
 }
 
+
+function adaptiveHomeMood(data, todayEvents, now = new Date()) {
+  const hour = now.getHours();
+  const day = now.getDay();
+  const todayIso = toISO(now);
+  const remaining = todayEvents.filter((event) => event.allDay || event.time >= now.toTimeString().slice(0,5));
+  const pendingTasks = (data.tasks || []).filter((task) => task.status !== 'done' && task.dueDate <= todayIso).length;
+  const routinesLeft = (data.routines || []).filter((routine) => routineIsScheduled(routine, now) && !routineIsCompleted(data, routine.id, todayIso)).length;
+  const tomorrow = toISO(addDays(new Date(now.getFullYear(), now.getMonth(), now.getDate()), 1));
+  const tomorrowEvents = eventsForDate(data, tomorrow, 'all').sort((a,b) => (a.allDay?'00:00':a.time).localeCompare(b.allDay?'00:00':b.time));
+  if (day === 5 && hour >= 17) return { kicker:'Le week-end arrive', title:'La semaine se pose<br><em>place au temps ensemble</em>' };
+  if ((day === 6 || day === 0) && hour < 19) return { kicker:'Votre week-end', title: remaining.length ? `${remaining.length} moment${remaining.length>1?'s':''} encore aujourd’hui<br><em>le reste vous appartient</em>` : 'Le week-end respire<br><em>profitez-en ensemble</em>' };
+  if (hour < 6) return { kicker:'Tout doucement', title: tomorrowEvents[0] ? `Demain commence par ${escapeHTML(tomorrowEvents[0].title)}<br><em>${tomorrowEvents[0].allDay?'toute la journée':tomorrowEvents[0].time}</em>` : 'Demain peut attendre<br><em>la famille se repose</em>' };
+  if (hour < 11) return { kicker:'Bonjour la famille', title: todayEvents.length ? `Votre journée prend forme<br><em>${todayEvents.length} moment${todayEvents.length>1?'s':''} au programme</em>` : 'La journée est ouverte<br><em>prenez votre temps</em>' };
+  if (hour < 17) return { kicker:'Là où vous en êtes', title: remaining.length ? `${remaining.length} moment${remaining.length>1?'s':''} encore devant vous<br><em>tout est sous contrôle</em>` : pendingTasks+routinesLeft ? 'Les rendez-vous sont derrière vous<br><em>quelques petites choses restent</em>' : 'Le plus important est fait<br><em>soufflez un peu</em>' };
+  if (hour < 21) return { kicker:'La journée se pose', title: pendingTasks+routinesLeft ? `${pendingTasks+routinesLeft} chose${pendingTasks+routinesLeft>1?'s':''} encore à garder en tête<br><em>puis place à la soirée</em>` : tomorrowEvents[0] ? `Tout est calme ce soir<br><em>demain : ${escapeHTML(tomorrowEvents[0].title)}</em>` : 'Tout est calme ce soir<br><em>profitez de la famille</em>' };
+  return { kicker:'Demain se prépare', title: tomorrowEvents[0] ? `Demain commence par ${escapeHTML(tomorrowEvents[0].title)}<br><em>${tomorrowEvents[0].allDay?'toute la journée':tomorrowEvents[0].time}</em>` : 'Rien ne presse demain<br><em>la soirée peut rester légère</em>' };
+}
+
 function renderHeader(data) {
   const today = new Date();
   const todayIso = toISO(today);
@@ -686,10 +870,11 @@ function renderHeader(data) {
   $('#pulseMeterFill').style.width = `${count === 0 ? 0 : Math.min(96, Math.max(18, count * 16))}%`;
 
   const birthdaysToday = birthdayMembersForDate(data, todayIso);
-  if (birthdaysToday.length) $('#heroTitle').innerHTML = `🎂 Joyeux anniversaire ${escapeHTML(birthdaysToday.map(memberDisplayName).join(' & '))} !<br><em>Une journée à célébrer</em>`;
-  else if (count === 0) $('#heroTitle').innerHTML = `Aujourd’hui respire<br><em>Profitez-en ensemble</em>`;
-  else if (count === 1) $('#heroTitle').innerHTML = `Un seul moment prévu<br><em>Le reste vous appartient</em>`;
-  else $('#heroTitle').innerHTML = `${count} moments aujourd’hui<br><em>Tout est sous contrôle</em>`;
+  const adaptive = adaptiveHomeMood(data, todayEvents, today);
+  const heroKickerText = $('#heroKicker span');
+  if (heroKickerText) heroKickerText.textContent = adaptive.kicker;
+  if (birthdaysToday.length) $('#heroTitle').innerHTML = `🎂 Joyeux anniversaire ${escapeHTML(birthdaysToday.map(memberDisplayName).join(' & '))}<br><em>Une journée à célébrer</em>`;
+  else $('#heroTitle').innerHTML = adaptive.title;
 
   const perMember = data.members.map((member) => ({ member, count: todayEvents.filter((event) => event.memberIds.includes(member.id)).length }));
   const pendingTasksToday = (data.tasks || []).filter((task) => task.status !== 'done' && task.dueDate <= todayIso).length;
@@ -2293,6 +2478,7 @@ function unlockApp() {
   gate.classList.add('is-leaving');
   setTimeout(() => { gate.hidden = true; gate.classList.remove('is-leaving'); }, 430);
   render();
+  resetInitialScrollPosition();
   updateConnection();
 }
 
@@ -2567,6 +2753,8 @@ function setupEvents() {
   $('#deleteRoutineButton').addEventListener('click', deleteCurrentRoutine);
   $('#goTodayButton').addEventListener('click', () => selectDate(toISO(new Date())));
   $('#agendaTodayButton').addEventListener('click', () => { selectDate(toISO(new Date())); switchView('agenda'); });
+  $('#naturalEventParseButton')?.addEventListener('click', prepareNaturalEvent);
+  $('#naturalEventInput')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); prepareNaturalEvent(); } });
   $('#eventForm').addEventListener('submit', handleEventSubmit);
   $('#deleteCurrentEventButton').addEventListener('click', deleteCurrentEvent);
   $('#deleteSeriesButton').addEventListener('click', deleteCurrentSeries);
@@ -2769,6 +2957,7 @@ async function bootstrap() {
   setupEvents();
   setupPWA();
   setupMobileViewportStability();
+  setupReturnToTopOnResume();
   applyMotionPreference();
   setupPremiumUX();
   render();

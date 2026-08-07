@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=4.2.1">
+  <link rel="stylesheet" href="styles.css?v=4.3.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -200,7 +200,7 @@
         <section class="hero-card reveal" aria-labelledby="heroTitle">
           <div class="hero-glow"></div>
           <div class="hero-content">
-            <p class="hero-kicker"><svg><use href="#i-sparkles"></use></svg> Le rythme familial</p>
+            <p class="hero-kicker" id="heroKicker"><svg><use href="#i-sparkles"></use></svg> <span>Le rythme familial</span></p>
             <h2 id="heroTitle">Votre journée à construire,<br><em>ensemble et simplement</em></h2>
             <p class="hero-summary" id="heroSummary">Une vue claire de ce qui compte aujourd’hui.</p>
             <button class="live-moment tap" id="liveMomentButton" type="button" aria-label="Voir le moment en cours ou à venir">
@@ -752,6 +752,18 @@
         <div><p class="eyebrow">Ajouter en un geste</p><h2 id="quickAddTitle">Qu’est-ce qu’on ajoute ?</h2></div>
         <button type="button" class="icon-button tap" data-close-quick-add aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
       </header>
+      <div class="natural-add" id="naturalAddBlock">
+        <div class="natural-add-heading">
+          <span class="natural-add-spark"><svg><use href="#i-sparkles"></use></svg></span>
+          <div><strong>Écris-le simplement</strong><small>AGENDA prépare le rendez-vous pour toi</small></div>
+        </div>
+        <div class="natural-add-input-row">
+          <input id="naturalEventInput" type="text" maxlength="180" autocomplete="off" placeholder="Dentiste Chacha jeudi à 16h pendant 45 min avec Romane">
+          <button class="natural-add-submit tap" id="naturalEventParseButton" type="button" aria-label="Préparer le rendez-vous"><svg><use href="#i-arrow-up-right"></use></svg></button>
+        </div>
+        <p class="natural-add-example" id="naturalAddHint">Ex. École Chacha demain 8h30 pendant 30 min avec Nacer</p>
+      </div>
+      <div class="quick-add-divider"><span>ou choisir</span></div>
       <div class="quick-add-grid">
         <button class="quick-add-choice tap" type="button" data-quick-add-target="event"><span><svg><use href="#i-calendar"></use></svg></span><strong>Événement</strong><small>Rendez-vous ou moment familial</small></button>
         <button class="quick-add-choice tap" type="button" data-quick-add-target="task"><span><svg><use href="#i-circle-check"></use></svg></span><strong>Tâche</strong><small>Quelque chose à ne pas oublier</small></button>
@@ -864,6 +876,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=4.2.1"></script>
+  <script type="module" src="js/app.js?v=4.3.0"></script>
 </body>
 </html>
