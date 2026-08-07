@@ -48,7 +48,7 @@ const missingIds = [...new Set(directRefs.filter((id) => !htmlIds.has(id)))];
 if (missingIds.length) failures.push(`Identifiants HTML manquants : ${missingIds.join(', ')}`);
 
 const sql = fs.readFileSync(path.join(root, 'supabase/schema.sql'), 'utf8');
-for (const expected of ['enable row level security', 'create_agenda_family', 'join_agenda_family', 'rotate_family_invite', 'supabase_realtime']) {
+for (const expected of ['enable row level security', 'create_agenda_family', 'join_agenda_family', 'rotate_family_invite', 'update_family_identity', 'update_member_presentation', 'responsible_member_id', 'recurrence_rule', 'supabase_realtime']) {
   if (!sql.toLowerCase().includes(expected.toLowerCase())) failures.push(`Élément SQL manquant : ${expected}`);
 }
 if (/service_role/i.test(fs.readFileSync(path.join(root, 'js/config.js'), 'utf8'))) failures.push('Une clé service_role ne doit jamais être présente dans le navigateur.');

@@ -521,3 +521,182 @@ body.is-authenticating { overflow: hidden; }
   .quick-actions { grid-template-columns: 1fr; }
   .hero-glance { display: grid; }
 }
+
+/* v3.3 — identité familiale, récurrence et personnalisation */
+.hero-summary {
+  position: relative;
+  z-index: 2;
+  max-width: 620px;
+  margin: 16px 0 0;
+  color: rgba(246,238,216,.72);
+  font-size: .78rem;
+  line-height: 1.55;
+}
+#familyTitle small {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.4;
+  letter-spacing: 0;
+  font-weight: 560;
+}
+.family-name-row,
+.family-identity-fields {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 92px;
+  gap: 10px;
+}
+.family-symbol-field input { text-align: center; font-size: 1.2rem; }
+.family-identity-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  border: 1px solid rgba(34,74,84,.08);
+  border-radius: 22px;
+  padding: 14px;
+  background: rgba(255,255,255,.76);
+  box-shadow: var(--shadow-sm);
+}
+.switch-field {
+  min-height: 66px;
+  border: 1px solid rgba(34,74,84,.08);
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,.68);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.switch-field > span:first-child { display: grid; gap: 2px; }
+.switch-field strong { color: var(--forest); font-size: .78rem; }
+.switch-field small, .field-hint { color: var(--muted); font-size: .64rem; }
+.field-hint { display: block; margin-top: 6px; }
+.series-edit-note {
+  border-radius: 14px;
+  padding: 11px 12px;
+  color: var(--petrol);
+  background: rgba(34,74,84,.07);
+  font-size: .7rem;
+  font-weight: 650;
+}
+.responsible-pill { color: var(--petrol) !important; font-weight: 720; }
+.responsible-pill svg { width: 13px; height: 13px; }
+.member-customize-button {
+  width: 100%;
+  margin-top: 14px;
+  min-height: 42px;
+  border: 1px solid rgba(34,74,84,.08);
+  border-radius: 15px;
+  background: rgba(34,74,84,.05);
+  color: var(--petrol);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: .7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.member-customize-button svg { width: 15px; height: 15px; }
+.member-edit-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(34,74,84,.08);
+  border-radius: 22px;
+  padding: 14px;
+  background: white;
+  box-shadow: var(--shadow-sm);
+}
+.member-edit-preview > div { display: grid; }
+.member-edit-preview strong { color: var(--forest); font-size: 1rem; }
+.member-edit-preview span { color: var(--muted); font-size: .7rem; }
+.member-edit-avatar {
+  width: 62px;
+  height: 62px;
+  border-radius: 21px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: var(--avatar, var(--petrol));
+  color: white;
+  font-size: .82rem;
+  font-weight: 850;
+}
+.member-edit-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.member-edit-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; }
+.member-edit-actions .primary-button { flex: 1; justify-content: center; }
+input[type="color"] { min-height: 48px; padding: 5px; cursor: pointer; }
+
+/* Les actions rapides restent compactes sur mobile : plus proches d'une app native. */
+@media (max-width: 699px) {
+  .quick-actions {
+    display: flex;
+    gap: 9px;
+    overflow-x: auto;
+    margin: 16px -18px 0;
+    padding: 3px 18px 9px;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .quick-actions::-webkit-scrollbar { display: none; }
+  .quick-action-card {
+    flex: 0 0 150px;
+    min-height: 118px;
+    scroll-snap-align: start;
+    border-radius: 24px;
+  }
+  .hero-card { min-height: 330px; }
+  .hero-glance { display: flex; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .hero-glance::-webkit-scrollbar { display: none; }
+  .hero-chip { flex: 0 0 auto; }
+  .family-name-row, .family-identity-fields { grid-template-columns: minmax(0,1fr) 78px; }
+  .member-edit-actions { display: grid; }
+}
+
+.birthday-card {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr);
+  gap: 13px;
+  align-items: center;
+  margin: 0 0 14px;
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(212,154,66,.24);
+  background: linear-gradient(135deg, rgba(255,250,236,.96), rgba(246,238,216,.78));
+  box-shadow: 0 14px 34px rgba(139,94,60,.08);
+}
+.birthday-card > div { display: grid; }
+.birthday-card span { color: #B57929; font-size: .66rem; font-weight: 850; text-transform: uppercase; letter-spacing: .08em; }
+.birthday-card strong { color: var(--forest); font-size: 1rem; }
+.birthday-card p { margin: 3px 0 0; color: var(--muted); font-size: .7rem; }
+.birthday-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 17px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--avatar, #D49A42);
+  color: white;
+  font-size: .72rem;
+  font-weight: 850;
+}
+.birthday-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.birthday-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(34,74,84,.07);
+  color: var(--muted);
+  font-size: .68rem;
+}
+.birthday-line strong { color: #B57929; }
+.birthday-preview { color: #B57929; }

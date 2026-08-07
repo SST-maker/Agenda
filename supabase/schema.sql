@@ -17,6 +17,7 @@ create table if not exists public.profiles (
 create table if not exists public.families (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(name) between 2 and 100),
+  symbol text not null default '🌿' check (char_length(symbol) between 1 and 8),
   created_by uuid not null references auth.users(id) on delete restrict,
   quiet_mode boolean not null default false,
   invite_code_hash text,
@@ -38,6 +39,8 @@ create table if not exists public.members (
   id uuid primary key default gen_random_uuid(),
   family_id uuid not null references public.families(id) on delete cascade,
   name text not null check (char_length(name) between 1 and 60),
+  nickname text check (nickname is null or char_length(nickname) between 1 and 40),
+  birthday date,
   role_label text not null check (char_length(role_label) between 1 and 40),
   initials text not null check (char_length(initials) between 1 and 4),
   color text not null check (color ~ '^#[0-9A-Fa-f]{6}$'),
@@ -62,6 +65,10 @@ create table if not exists public.events (
   location text check (location is null or char_length(location) <= 100),
   notes text check (notes is null or char_length(notes) <= 300),
   member_ids uuid[] not null default '{}',
+  all_day boolean not null default false,
+  responsible_member_id uuid references public.members(id) on delete set null,
+  series_id uuid,
+  recurrence_rule text not null default 'none' check (recurrence_rule in ('none','daily','weekly','monthly','yearly')),
   created_by uuid not null default auth.uid() references auth.users(id) on delete restrict,
   updated_by uuid not null default auth.uid() references auth.users(id) on delete restrict,
   created_at timestamptz not null default now(),
@@ -71,6 +78,9 @@ create table if not exists public.events (
 
 create index if not exists events_family_date_idx
   on public.events (family_id, event_date, event_time);
+
+create index if not exists events_family_series_idx
+  on public.events (family_id, series_id) where series_id is not null;
 
 create or replace function public.touch_updated_at()
 returns trigger
@@ -144,6 +154,11 @@ begin
   ) then
     raise exception 'Un membre sélectionné n’appartient pas à cette famille.';
   end if;
+  if new.responsible_member_id is not null and not exists (
+    select 1 from public.members m where m.id = new.responsible_member_id and m.family_id = new.family_id
+  ) then
+    raise exception 'Le responsable sélectionné n’appartient pas à cette famille.';
+  end if;
   return new;
 end;
 $$;
@@ -182,7 +197,7 @@ begin
     invite_code_hash,
     invite_expires_at
   ) values (
-    'Famille Nacer & Romane',
+    'Famille Hamadi',
     v_user_id,
     encode(extensions.digest(upper(v_code), 'sha256'), 'hex'),
     now() + interval '72 hours'
@@ -260,6 +275,57 @@ begin
 end;
 $$;
 
+create or replace function public.update_family_identity(p_name text, p_symbol text default '🌿')
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_family_id uuid := public.current_family_id();
+  v_name text := left(trim(coalesce(p_name, '')), 100);
+  v_symbol text := left(trim(coalesce(p_symbol, '🌿')), 8);
+begin
+  if v_family_id is null or not public.is_family_admin(v_family_id) then
+    raise exception 'Seul l’administrateur peut modifier l’identité de la famille.';
+  end if;
+  if char_length(v_name) < 2 then raise exception 'Nom de famille invalide.'; end if;
+  if char_length(v_symbol) < 1 then v_symbol := '🌿'; end if;
+  update public.families set name = v_name, symbol = v_symbol, updated_at = now() where id = v_family_id;
+  return jsonb_build_object('name', v_name, 'symbol', v_symbol);
+end;
+$$;
+
+create or replace function public.update_member_presentation(
+  p_member_id uuid,
+  p_nickname text default null,
+  p_color text default null,
+  p_avatar_url text default null,
+  p_birthday date default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_family_id uuid := public.current_family_id();
+  v_color text := coalesce(nullif(trim(p_color), ''), '#224A54');
+  v_nickname text := nullif(left(trim(coalesce(p_nickname, '')), 40), '');
+  v_avatar text := case when p_avatar_url is null or length(trim(p_avatar_url)) = 0 then null else trim(p_avatar_url) end;
+begin
+  if v_family_id is null or not public.is_family_admin(v_family_id) then
+    raise exception 'Seul l’administrateur peut personnaliser les profils familiaux.';
+  end if;
+  if v_color !~ '^#[0-9A-Fa-f]{6}$' then raise exception 'Couleur invalide.'; end if;
+  update public.members
+  set nickname = v_nickname, color = v_color, avatar_url = v_avatar, birthday = p_birthday, updated_at = now()
+  where id = p_member_id and family_id = v_family_id;
+  if not found then raise exception 'Membre introuvable.'; end if;
+  return jsonb_build_object('updated', true);
+end;
+$$;
+
 create or replace function public.update_my_avatar(p_avatar_url text default null)
 returns jsonb
 language plpgsql
@@ -323,6 +389,8 @@ revoke all on function public.create_agenda_family(text) from public;
 revoke all on function public.join_agenda_family(text, text) from public;
 revoke all on function public.rotate_family_invite() from public;
 revoke all on function public.update_my_avatar(text) from public;
+revoke all on function public.update_family_identity(text, text) from public;
+revoke all on function public.update_member_presentation(uuid, text, text, text, date) from public;
 
 grant execute on function public.current_family_id() to authenticated;
 grant execute on function public.is_family_member(uuid) to authenticated;
@@ -331,6 +399,8 @@ grant execute on function public.create_agenda_family(text) to authenticated;
 grant execute on function public.join_agenda_family(text, text) to authenticated;
 grant execute on function public.rotate_family_invite() to authenticated;
 grant execute on function public.update_my_avatar(text) to authenticated;
+grant execute on function public.update_family_identity(text, text) to authenticated;
+grant execute on function public.update_member_presentation(uuid, text, text, text, date) to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.families enable row level security;

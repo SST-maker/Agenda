@@ -56,3 +56,19 @@ La clé présente dans le navigateur doit être uniquement la **Publishable key*
 - actions rapides sur l’accueil ;
 - interface raffinée et plus lisible ;
 - migration Supabase dédiée pour les projets déjà en production : `supabase/upgrade_v3_2_profile_photos.sql`.
+
+
+## Nouveautés v3.3
+
+- identité de famille personnalisable (nom + symbole) ;
+- salutation dynamique avec le nom de famille ;
+- résumé intelligent de la journée ;
+- surnom, couleur, anniversaire et photo par membre ;
+- anniversaires mis en avant dans l’agenda ;
+- événements toute la journée ;
+- événements récurrents ;
+- responsable d’un événement ;
+- suppression d’une occurrence ou de toute une série ;
+- interface d’accueil plus intuitive.
+
+Pour un projet déjà en ligne, suivre `MISE_A_JOUR_V3_3.md`.

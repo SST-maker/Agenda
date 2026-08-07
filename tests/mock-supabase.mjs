@@ -2,13 +2,13 @@ const familyId = '11111111-1111-4111-8111-111111111111';
 const userId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 export const mockDb = {
-  profile: { display_name: 'Nacer' },
+  profile: { display_name: 'Nacer', avatar_url: null },
   membership: { family_id: familyId, role: 'admin' },
-  family: { id: familyId, name: 'Famille Nacer & Romane', quiet_mode: false, invite_expires_at: null },
+  family: { id: familyId, name: 'Famille Hamadi', symbol: '🌿', quiet_mode: false, invite_expires_at: null },
   members: [
-    { id:'22222222-2222-4222-8222-222222222222', family_id:familyId, name:'Nacer', role_label:'Papa', initials:'NA', color:'#224A54', linked_user_id:userId, sort_order:10 },
-    { id:'33333333-3333-4333-8333-333333333333', family_id:familyId, name:'Romane', role_label:'Maman', initials:'RO', color:'#C79A5C', linked_user_id:null, sort_order:20 },
-    { id:'44444444-4444-4444-8444-444444444444', family_id:familyId, name:'Chacha', role_label:'Enfant', initials:'CH', color:'#739A87', linked_user_id:null, sort_order:30 }
+    { id:'22222222-2222-4222-8222-222222222222', family_id:familyId, name:'Nacer', nickname:null, role_label:'Papa', initials:'NA', color:'#224A54', linked_user_id:userId, sort_order:10 },
+    { id:'33333333-3333-4333-8333-333333333333', family_id:familyId, name:'Romane', nickname:null, role_label:'Maman', initials:'RO', color:'#C79A5C', linked_user_id:null, sort_order:20 },
+    { id:'44444444-4444-4444-8444-444444444444', family_id:familyId, name:'Chacha', nickname:null, role_label:'Enfant', initials:'CH', color:'#739A87', linked_user_id:null, sort_order:30 }
   ],
   events: []
 };
@@ -34,15 +34,21 @@ class Query {
       if (this.table === 'events') return { data: structuredClone(mockDb.events), error: null };
     }
     if (this.table === 'events' && this.action === 'upsert') {
-      const index = mockDb.events.findIndex((event) => event.id === this.payload.id);
-      const row = { ...this.payload, updated_at: new Date().toISOString() };
-      if (index >= 0) mockDb.events[index] = { ...mockDb.events[index], ...row };
-      else mockDb.events.push(row);
+      const rows = Array.isArray(this.payload) ? this.payload : [this.payload];
+      for (const payload of rows) {
+        const index = mockDb.events.findIndex((event) => event.id === payload.id);
+        const row = { ...payload, updated_at: new Date().toISOString() };
+        if (index >= 0) mockDb.events[index] = { ...mockDb.events[index], ...row };
+        else mockDb.events.push(row);
+      }
       return { data: null, error: null };
     }
     if (this.table === 'events' && this.action === 'delete') {
       const id = this.filters.find(([key]) => key === 'id')?.[1];
-      mockDb.events = id ? mockDb.events.filter((event) => event.id !== id) : [];
+      const seriesId = this.filters.find(([key]) => key === 'series_id')?.[1];
+      if (id) mockDb.events = mockDb.events.filter((event) => event.id !== id);
+      else if (seriesId) mockDb.events = mockDb.events.filter((event) => event.series_id !== seriesId);
+      else mockDb.events = [];
       return { data: null, error: null };
     }
     if (this.table === 'families' && this.action === 'update') {
@@ -69,7 +75,13 @@ export function createClient() {
       async updateUser() { return { error: null }; }
     },
     from(table) { return new Query(table); },
-    async rpc(name) { return { data: name === 'rotate_family_invite' ? 'AGENDA-ABCDEF123456' : {}, error: null }; },
+    async rpc(name, args = {}) {
+      if (name === 'rotate_family_invite') return { data: 'AGENDA-ABCDEF123456', error: null };
+      if (name === 'update_family_identity') { mockDb.family.name = args.p_name; mockDb.family.symbol = args.p_symbol; return { data: {}, error: null }; }
+      if (name === 'update_member_presentation') { const m = mockDb.members.find((item) => item.id === args.p_member_id); if (m) { m.nickname = args.p_nickname; m.color = args.p_color; m.avatar_url = args.p_avatar_url; } return { data: {}, error: null }; }
+      if (name === 'update_my_avatar') { mockDb.profile.avatar_url = args.p_avatar_url; const m = mockDb.members.find((item) => item.linked_user_id === userId); if (m) m.avatar_url = args.p_avatar_url; return { data: {}, error: null }; }
+      return { data: {}, error: null };
+    },
     channel() { return { on() { return this; }, subscribe(callback) { callback('SUBSCRIBED'); return this; } }; },
     removeChannel() {}
   };

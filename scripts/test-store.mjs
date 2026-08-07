@@ -60,8 +60,26 @@ await new Promise((resolve) => setTimeout(resolve, 30));
 assert.equal(mockDb.events.length, 0);
 assert.equal(store.getState().events.length, 0);
 
+
+const seriesId = '55555555-5555-4555-8555-555555555555';
+store.addEvents([
+  { title:'Piscine', date:'2026-08-20', time:'18:00', duration:60, category:'sport', location:'', notes:'', memberIds:[store.getState().members[2].id], allDay:false, responsibleMemberId:store.getState().members[0].id, seriesId, recurrenceRule:'weekly' },
+  { title:'Piscine', date:'2026-08-27', time:'18:00', duration:60, category:'sport', location:'', notes:'', memberIds:[store.getState().members[2].id], allDay:false, responsibleMemberId:store.getState().members[0].id, seriesId, recurrenceRule:'weekly' }
+]);
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.events.filter((event) => event.series_id === seriesId).length, 2);
+store.deleteSeries(seriesId);
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.events.filter((event) => event.series_id === seriesId).length, 0);
+
+await store.updateFamilyIdentity({ name:'Famille Hamadi', symbol:'🌿' });
+assert.equal(store.getState().family.name, 'Famille Hamadi');
+const nacer = store.getState().members[0];
+await store.updateMemberPresentation(nacer.id, { nickname:'Papa', color:'#123456', avatarUrl:null });
+assert.equal(store.getState().members[0].nickname, 'Papa');
+
 const invitation = await store.createInvitation();
 assert.equal(invitation.token, 'AGENDA-ABCDEF123456');
 assert.match(invitation.link, /\?join=AGENDA-ABCDEF123456$/);
 
-console.log('Test du store réussi : authentification, chargement, création, modification, suppression et invitation.');
+console.log('Test du store réussi : auth, événements, séries, identité familiale, profils et invitation.');

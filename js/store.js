@@ -1,11 +1,11 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js';
 
-const STORAGE_KEY = 'agenda-family-supabase-state-v2';
-const QUEUE_KEY = 'agenda-family-supabase-queue-v2';
-const PENDING_ONBOARDING_KEY = 'agenda-family-supabase-onboarding-v2';
+const STORAGE_KEY = 'agenda-family-supabase-state-v3';
+const QUEUE_KEY = 'agenda-family-supabase-queue-v3';
+const PENDING_ONBOARDING_KEY = 'agenda-family-supabase-onboarding-v3';
 const CHANNEL_NAME = 'agenda-family-supabase-tabs';
-const DATA_VERSION = 2;
+const DATA_VERSION = 3;
 
 const uid = () => globalThis.crypto?.randomUUID?.() || `evt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -34,12 +34,12 @@ export const addDays = (date, days) => {
 function createSeed() {
   return {
     version: DATA_VERSION,
-    family: { id: null, name: 'Famille Nacer & Romane' },
+    family: { id: null, name: 'Famille Hamadi', symbol: '🌿' },
     settings: { quietMode: false },
     members: [
-      { id: 'local-nacer', name: 'Nacer', role: 'Papa', initials: 'NA', color: '#224A54', avatarUrl: null },
-      { id: 'local-romane', name: 'Romane', role: 'Maman', initials: 'RO', color: '#C79A5C', avatarUrl: null },
-      { id: 'local-chacha', name: 'Chacha', role: 'Enfant', initials: 'CH', color: '#739A87', avatarUrl: null }
+      { id: 'local-nacer', name: 'Nacer', nickname: '', role: 'Papa', initials: 'NA', color: '#224A54', avatarUrl: null },
+      { id: 'local-romane', name: 'Romane', nickname: '', role: 'Maman', initials: 'RO', color: '#C79A5C', avatarUrl: null },
+      { id: 'local-chacha', name: 'Chacha', nickname: '', role: 'Enfant', initials: 'CH', color: '#739A87', avatarUrl: null }
     ],
     events: [],
     syncedAt: null
@@ -78,6 +78,8 @@ function mapMember(row) {
   return {
     id: row.id,
     name: row.name,
+    nickname: row.nickname || '',
+    birthday: row.birthday || '',
     role: row.role_label,
     initials: row.initials,
     color: row.color,
@@ -99,6 +101,10 @@ function mapEvent(row) {
     notes: row.notes || '',
     memberIds: Array.isArray(row.member_ids) ? row.member_ids : [],
     familyId: row.family_id,
+    allDay: Boolean(row.all_day),
+    responsibleMemberId: row.responsible_member_id || '',
+    seriesId: row.series_id || '',
+    recurrenceRule: row.recurrence_rule || 'none',
     updatedAt: row.updated_at
   };
 }
@@ -115,6 +121,10 @@ function eventToRow(event, familyId, userId) {
     location: String(event.location || '').trim().slice(0, 100) || null,
     notes: String(event.notes || '').trim().slice(0, 300) || null,
     member_ids: Array.isArray(event.memberIds) ? event.memberIds : [],
+    all_day: Boolean(event.allDay),
+    responsible_member_id: event.responsibleMemberId || null,
+    series_id: event.seriesId || null,
+    recurrence_rule: event.recurrenceRule || 'none',
     updated_by: userId
   };
 }
@@ -302,8 +312,8 @@ class AgendaStore extends EventTarget {
     this.safeRemove('sb-offline-session-seen');
   }
 
-  async setup({ displayName, email, password }) {
-    this.setPendingOnboarding({ mode: 'create', displayName: displayName || 'Nacer' });
+  async setup({ displayName, familyName, familySymbol, email, password }) {
+    this.setPendingOnboarding({ mode: 'create', displayName: displayName || 'Nacer', familyName: familyName || 'Famille Hamadi', familySymbol: familySymbol || '🌿' });
     const { data, error } = await this.supabase.auth.signUp({
       email: String(email || '').trim().toLowerCase(),
       password,
@@ -328,8 +338,8 @@ class AgendaStore extends EventTarget {
     this.setPendingOnboarding({ mode: 'join', code: String(code || '').trim().toUpperCase(), displayName });
   }
 
-  async createFamilyForCurrentAccount(displayName = 'Nacer') {
-    this.setPendingOnboarding({ mode: 'create', displayName });
+  async createFamilyForCurrentAccount(displayName = 'Nacer', familyName = 'Famille Hamadi', familySymbol = '🌿') {
+    this.setPendingOnboarding({ mode: 'create', displayName, familyName, familySymbol });
     await this.completePendingOnboarding();
     await this.pullRemote();
     this.openRealtime();
@@ -359,6 +369,13 @@ class AgendaStore extends EventTarget {
     const { error } = await this.supabase.rpc(functionName, args);
     if (error) {
       if (!/déjà|already|membership/i.test(error.message || '')) throw error;
+    }
+    if (pending.mode === 'create' && (pending.familyName || pending.familySymbol)) {
+      const { error: identityError } = await this.supabase.rpc('update_family_identity', {
+        p_name: pending.familyName || 'Famille Hamadi',
+        p_symbol: pending.familySymbol || '🌿'
+      });
+      if (identityError) throw identityError;
     }
     this.setPendingOnboarding(null);
   }
@@ -422,7 +439,7 @@ class AgendaStore extends EventTarget {
 
     const familyId = membershipResult.data.family_id;
     const [familyResult, membersResult, eventsResult] = await Promise.all([
-      this.supabase.from('families').select('id, name, quiet_mode, invite_expires_at').eq('id', familyId).single(),
+      this.supabase.from('families').select('id, name, symbol, quiet_mode, invite_expires_at').eq('id', familyId).single(),
       this.supabase.from('members').select('*').eq('family_id', familyId).order('sort_order'),
       this.supabase.from('events').select('*').eq('family_id', familyId).order('event_date').order('event_time')
     ]);
@@ -439,7 +456,7 @@ class AgendaStore extends EventTarget {
     this.safeSet('sb-offline-session-seen', JSON.stringify(this.currentUser));
     this.state = {
       version: DATA_VERSION,
-      family: { id: familyResult.data.id, name: familyResult.data.name, inviteExpiresAt: familyResult.data.invite_expires_at },
+      family: { id: familyResult.data.id, name: familyResult.data.name, symbol: familyResult.data.symbol || '🌿', inviteExpiresAt: familyResult.data.invite_expires_at },
       settings: { quietMode: Boolean(familyResult.data.quiet_mode) },
       members: membersResult.data.map(mapMember),
       events: eventsResult.data.map(mapEvent),
@@ -488,6 +505,21 @@ class AgendaStore extends EventTarget {
     this.saveState('event-added');
     this.enqueue('upsert_event', item);
     return item;
+  }
+
+  addEvents(events) {
+    const items = events.map((event) => ({ ...event, id: event.id || uid(), familyId: this.state.family.id, updatedAt: new Date().toISOString() }));
+    this.state.events.push(...items);
+    this.saveState('events-added');
+    this.enqueue('upsert_events', items);
+    return items;
+  }
+
+  deleteSeries(seriesId) {
+    if (!seriesId) return;
+    this.state.events = this.state.events.filter((event) => event.seriesId !== seriesId);
+    this.saveState('series-deleted');
+    this.enqueue('delete_series', { seriesId });
   }
 
   updateEvent(id, changes) {
@@ -539,6 +571,28 @@ class AgendaStore extends EventTarget {
     this.emit('profile-updated');
   }
 
+  async updateFamilyIdentity({ name, symbol }) {
+    if (!navigator.onLine) throw new Error('Une connexion Internet est nécessaire.');
+    const { error } = await this.supabase.rpc('update_family_identity', { p_name: String(name || '').trim(), p_symbol: String(symbol || '').trim() || '🌿' });
+    if (error) throw error;
+    await this.pullRemote();
+    this.emit('family-identity-updated');
+  }
+
+  async updateMemberPresentation(memberId, { nickname = '', color, avatarUrl, birthday = '' }) {
+    if (!navigator.onLine) throw new Error('Une connexion Internet est nécessaire.');
+    const { error } = await this.supabase.rpc('update_member_presentation', {
+      p_member_id: memberId,
+      p_nickname: String(nickname || '').trim() || null,
+      p_color: color || null,
+      p_avatar_url: avatarUrl === undefined ? null : avatarUrl,
+      p_birthday: birthday || null
+    });
+    if (error) throw error;
+    await this.pullRemote();
+    this.emit('member-updated');
+  }
+
   exportData() {
     const payload = {
       exportedAt: new Date().toISOString(),
@@ -565,8 +619,14 @@ class AgendaStore extends EventTarget {
       case 'upsert_event':
         result = await this.supabase.from('events').upsert(eventToRow(operation.payload, familyId, userId));
         break;
+      case 'upsert_events':
+        result = await this.supabase.from('events').upsert(operation.payload.map((event) => eventToRow(event, familyId, userId)));
+        break;
       case 'delete_event':
         result = await this.supabase.from('events').delete().eq('id', operation.payload.id).eq('family_id', familyId);
+        break;
+      case 'delete_series':
+        result = await this.supabase.from('events').delete().eq('series_id', operation.payload.seriesId).eq('family_id', familyId);
         break;
       case 'update_family':
         result = await this.supabase.from('families').update({ quiet_mode: Boolean(operation.payload.quietMode) }).eq('id', familyId);

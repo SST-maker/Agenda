@@ -1,11 +1,11 @@
-const CACHE_NAME = 'agenda-shell-v3.2.0';
+const CACHE_NAME = 'agenda-shell-v3.3.0';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=3.2.0',
+  './styles.css?v=3.3.0',
   './manifest.json',
-  './js/app.js?v=3.2.0',
-  './js/store.js?v=3.2.0',
+  './js/app.js?v=3.3.0',
+  './js/store.js?v=3.3.0',
   './assets/brand/logo-horizontal.svg',
   './assets/brand/logo-symbol.svg',
   './assets/brand/logo-symbol-light.svg',

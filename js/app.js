@@ -1,4 +1,4 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.2.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.3.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -59,7 +59,7 @@ function initialsFor(value = '') {
 }
 function renderAvatar(entity, { className = 'avatar', title = '', fallback = '' } = {}) {
   if (!entity) return `<span class="${className}">${escapeHTML(fallback || '??')}</span>`;
-  const label = entity.name || entity.displayName || '';
+  const label = entity.nickname || entity.name || entity.displayName || '';
   const attrTitle = title || label ? ` title="${escapeHTML(title || label)}"` : '';
   const style = entity.color ? ` style="--avatar:${entity.color}"` : '';
   const initials = entity.initials || initialsFor(label);
@@ -80,6 +80,16 @@ function eventsForDate(data, date, memberId = state.activeMember) {
   return filteredEvents(data, memberId).filter((event) => event.date === date).sort((a, b) => a.time.localeCompare(b.time));
 }
 function memberById(data, id) { return data.members.find((member) => member.id === id); }
+function memberDisplayName(member) { return member?.nickname || member?.name || 'Membre'; }
+function familyDisplayName(data) { return data.family?.name || 'La famille'; }
+function birthdayMembersForDate(data, iso) {
+  const md = iso.slice(5);
+  return data.members.filter((member) => member.birthday && member.birthday.slice(5) === md);
+}
+function formatBirthday(value) {
+  if (!value) return '';
+  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' }).format(parseISO(value));
+}
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return 'Bonjour';
@@ -103,17 +113,32 @@ function render() {
 
 function renderHeader(data) {
   const today = new Date();
+  const todayIso = toISO(today);
+  const todayEvents = eventsForDate(data, todayIso, 'all');
+  const count = todayEvents.length;
   $('#todayEyebrow').textContent = capitalize(dateFormatter.format(today));
   $('#greeting').textContent = getGreeting();
+  $('#familyGreeting').textContent = familyDisplayName(data);
+  $('#familyNameTitle').textContent = familyDisplayName(data);
+  $('#familySymbolTitle').textContent = data.family?.symbol || '🌿';
   $('#orbitDay').textContent = String(today.getDate()).padStart(2, '0');
   $('#orbitMonth').textContent = monthShort.format(today).replace('.', '').toUpperCase().slice(0, 3);
-  const count = eventsForDate(data, toISO(today), 'all').length;
   $('#heroEventCount').textContent = `${count} rendez-vous`;
   $('#pulseMeterFill').style.width = `${count === 0 ? 0 : Math.min(96, Math.max(18, count * 16))}%`;
+
+  const birthdaysToday = birthdayMembersForDate(data, todayIso);
+  if (birthdaysToday.length) $('#heroTitle').innerHTML = `🎂 Joyeux anniversaire ${escapeHTML(birthdaysToday.map(memberDisplayName).join(' & '))} !<br><em>Une journée à célébrer.</em>`;
+  else if (count === 0) $('#heroTitle').innerHTML = `Aujourd’hui respire.<br><em>Profitez-en ensemble.</em>`;
+  else if (count === 1) $('#heroTitle').innerHTML = `Un seul moment prévu.<br><em>Le reste vous appartient.</em>`;
+  else $('#heroTitle').innerHTML = `${count} moments aujourd’hui.<br><em>Tout est sous contrôle.</em>`;
+
+  const perMember = data.members.map((member) => ({ member, count: todayEvents.filter((event) => event.memberIds.includes(member.id)).length }));
+  $('#heroSummary').textContent = perMember.map(({ member, count: memberCount }) => `${memberDisplayName(member)} : ${memberCount ? `${memberCount} prévu${memberCount > 1 ? 's' : ''}` : 'libre'}`).join(' · ');
+
   const nextEvent = nextUpcomingEvent(data);
-  $('#heroNextMoment').textContent = nextEvent ? `Prochain : ${nextEvent.title} · ${nextEvent.time}` : 'Aucun prochain rendez-vous';
+  $('#heroNextMoment').textContent = nextEvent ? `Prochain : ${nextEvent.title} · ${nextEvent.allDay ? 'journée' : nextEvent.time}` : 'Aucun prochain rendez-vous';
   const member = state.activeMember === 'all' ? null : memberById(data, state.activeMember);
-  $('#heroFilterHint').textContent = member ? `Filtre actif : ${member.name}` : 'Vue famille active';
+  $('#heroFilterHint').textContent = member ? `Filtre actif : ${memberDisplayName(member)}` : `${data.family?.symbol || '🌿'} Vue famille active`;
   $('#quietModeToggle').checked = Boolean(data.settings.quietMode);
 }
 
@@ -121,7 +146,7 @@ function renderMemberFilter(data) {
   const all = `<button class="member-chip ${state.activeMember === 'all' ? 'is-active' : ''} tap" data-member="all" role="option" aria-selected="${state.activeMember === 'all'}"><span class="avatar all">∞</span>Toute la famille</button>`;
   const members = data.members.map((member) => `
     <button class="member-chip ${state.activeMember === member.id ? 'is-active' : ''} tap" data-member="${member.id}" role="option" aria-selected="${state.activeMember === member.id}">
-      ${renderAvatar(member)}${member.name}
+      ${renderAvatar(member)}${escapeHTML(memberDisplayName(member))}
     </button>`).join('');
   $('#memberFilter').innerHTML = all + members;
 }
@@ -132,17 +157,19 @@ function renderDayRibbon(data) {
     const iso = toISO(day);
     const dayEvents = eventsForDate(data, iso);
     const categories = [...new Set(dayEvents.map((event) => event.category))].slice(0, 3);
+    const birthdays = birthdayMembersForDate(data, iso);
     return `<button class="day-pill tap ${state.selectedDate === iso ? 'is-selected' : ''} ${sameDay(day, new Date()) ? 'is-today' : ''}" data-date="${iso}" aria-label="${longDate.format(day)}, ${dayEvents.length} événement(s)">
       <span class="day-name">${shortWeekday.format(day).replace('.', '')}</span>
       <strong>${day.getDate()}</strong>
-      <span class="day-dots">${categories.map((category) => `<i style="--dot:${CATEGORY_META[category]?.color || '#C79A5C'}"></i>`).join('')}</span>
+      <span class="day-dots">${birthdays.length ? '<i style="--dot:#D49A42"></i>' : ''}${categories.map((category) => `<i style="--dot:${CATEGORY_META[category]?.color || '#C79A5C'}"></i>`).join('')}</span>
     </button>`;
   }).join('');
 
   requestAnimationFrame(() => $('#dayRibbon .is-selected')?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }));
 }
 
-function groupForTime(time) {
+function groupForTime(time, allDay = false) {
+  if (allDay) return 'Toute la journée';
   const minutes = timeToMinutes(time);
   if (minutes < 12 * 60) return 'Matin';
   if (minutes < 18 * 60) return 'Après-midi';
@@ -152,10 +179,11 @@ function groupForTime(time) {
 function eventCard(event, data) {
   const category = CATEGORY_META[event.category] || CATEGORY_META.family;
   const people = event.memberIds.map((id) => memberById(data, id)).filter(Boolean);
+  const responsible = event.responsibleMemberId ? memberById(data, event.responsibleMemberId) : null;
   return `<article class="event-card" style="--event-color:${category.color}" data-event-id="${event.id}">
     <div class="event-top">
       <div>
-        <span class="event-time">${icon('clock')}${event.time} · ${formatDuration(event.duration)}</span>
+        <span class="event-time">${icon('clock')}${event.allDay ? 'Toute la journée' : `${event.time} · ${formatDuration(event.duration)}`}${event.seriesId ? ' · Récurrent' : ''}</span>
         <h3>${escapeHTML(event.title)}</h3>
       </div>
       <button class="event-menu tap" data-edit-event="${event.id}" aria-label="Modifier ${escapeHTML(event.title)}">${icon('more')}</button>
@@ -163,8 +191,9 @@ function eventCard(event, data) {
     <div class="event-meta">
       <span>${category.label}</span>
       ${event.location ? `<span>${icon('map-pin')}${escapeHTML(event.location)}</span>` : ''}
+      ${responsible ? `<span class="responsible-pill">${icon('user')}Responsable : ${escapeHTML(memberDisplayName(responsible))}</span>` : ''}
     </div>
-    <div class="event-avatars">${people.map((member) => renderAvatar(member, { title: member.name })).join('')}</div>
+    <div class="event-avatars">${people.map((member) => renderAvatar(member, { title: memberDisplayName(member) })).join('')}</div>
   </article>`;
 }
 
@@ -173,13 +202,15 @@ function renderTimeline(data) {
   const today = new Date();
   $('#selectedDateLabel').textContent = sameDay(selected, today) ? 'Aujourd’hui' : capitalize(longDate.format(selected));
   const events = eventsForDate(data, state.selectedDate);
-  if (!events.length) {
+  const birthdays = birthdayMembersForDate(data, state.selectedDate).filter((member) => state.activeMember === 'all' || member.id === state.activeMember);
+  if (!events.length && !birthdays.length) {
     $('#timeline').innerHTML = `<div class="empty-state"><strong>Une respiration dans la semaine.</strong><p>Aucun événement pour ce filtre. Ce temps est à vous.</p><button class="primary-button tap" data-open-event>${icon('plus')}Ajouter un moment</button></div>`;
     return;
   }
-  const groups = ['Matin', 'Après-midi', 'Soirée'];
-  $('#timeline').innerHTML = groups.map((group) => {
-    const items = events.filter((event) => groupForTime(event.time) === group);
+  const birthdayCards = birthdays.map((member) => `<article class="birthday-card">${renderAvatar(member, { className: 'birthday-avatar' })}<div><span>🎂 Anniversaire</span><strong>${escapeHTML(memberDisplayName(member))}</strong><p>Une belle journée à célébrer ensemble.</p></div></article>`).join('');
+  const groups = ['Toute la journée', 'Matin', 'Après-midi', 'Soirée'];
+  $('#timeline').innerHTML = birthdayCards + groups.map((group) => {
+    const items = events.filter((event) => groupForTime(event.time, event.allDay) === group);
     if (!items.length) return '';
     return `<div class="timeline-group"><span class="time-node"></span><p class="timeline-label">${group}</p>${items.map((event) => eventCard(event, data)).join('')}</div>`;
   }).join('');
@@ -217,7 +248,7 @@ function renderAgenda(data) {
       <div class="flow-date"><strong>${day.getDate()}</strong><span>${shortWeekday.format(day).replace('.', '')}</span></div>
       <div class="flow-items">${events.length ? events.map((event) => {
         const members = event.memberIds.map((id) => memberById(data, id)).filter(Boolean);
-        return `<div class="flow-item"><time class="flow-item-time">${event.time}</time><div><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.location || CATEGORY_META[event.category].label)}</p><div class="flow-member-line">${members.map((member) => `<i style="--member-color:${member.color}"></i>`).join('')}</div></div></div>`;
+        return `<div class="flow-item"><time class="flow-item-time">${event.allDay ? 'Journée' : event.time}</time><div><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.location || CATEGORY_META[event.category].label)}</p><div class="flow-member-line">${members.map((member) => `<i style="--member-color:${member.color}"></i>`).join('')}</div></div></div>`;
       }).join('') : '<div class="empty-state"><strong>Journée légère</strong><p>Aucun rendez-vous.</p></div>'}</div>
     </article>`;
   }).join('');
@@ -263,12 +294,14 @@ function renderMonth(data) {
         ${days.map((day) => {
           const iso = toISO(day);
           const events = eventsForDate(data, iso);
+          const birthdays = birthdayMembersForDate(data, iso).filter((member) => state.activeMember === 'all' || member.id === state.activeMember);
           const isOutside = day.getMonth() !== monthStart.getMonth();
           return `<button class="month-day tap ${isOutside ? 'is-outside' : ''} ${sameDay(day, new Date()) ? 'is-today' : ''} ${iso === state.selectedDate ? 'is-selected' : ''}" data-month-date="${iso}" aria-label="${capitalize(longDate.format(day))}, ${events.length} événement(s)">
             <span class="month-day-number">${day.getDate()}</span>
             <span class="month-event-list">
-              ${events.slice(0, 3).map((event) => `<span class="month-event-preview" style="--month-event-color:${CATEGORY_META[event.category]?.color || '#C79A5C'}"><i></i><span>${escapeHTML(event.title)}</span></span>`).join('')}
-              ${events.length > 3 ? `<small>+${events.length - 3}</small>` : ''}
+              ${birthdays.slice(0, 1).map((member) => `<span class="month-event-preview birthday-preview" style="--month-event-color:#D49A42"><i></i><span>🎂 ${escapeHTML(memberDisplayName(member))}</span></span>`).join('')}
+              ${events.slice(0, birthdays.length ? 2 : 3).map((event) => `<span class="month-event-preview" style="--month-event-color:${CATEGORY_META[event.category]?.color || '#C79A5C'}"><i></i><span>${escapeHTML(event.title)}</span></span>`).join('')}
+              ${(events.length + birthdays.length) > 3 ? `<small>+${events.length + birthdays.length - 3}</small>` : ''}
             </span>
           </button>`;
         }).join('')}
@@ -325,18 +358,24 @@ function renderFamily(data) {
     const upcoming = data.events.filter((event) => event.memberIds.includes(member.id) && parseISO(event.date) >= new Date(new Date().setHours(0,0,0,0))).sort((a,b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))[0];
     const weekMinutes = data.events.filter((event) => event.memberIds.includes(member.id) && parseISO(event.date) >= weekStart && parseISO(event.date) < weekEnd).reduce((sum, event) => sum + event.duration, 0);
     const load = Math.min(100, Math.round((weekMinutes / (14 * 60)) * 100));
+    const canEdit = store.getCurrentUser()?.role === 'admin';
     return `<article class="family-card">
-      <div class="family-card-head"><div class="family-identity">${renderAvatar(member)}<div><strong>${escapeHTML(member.name)}</strong><span>${escapeHTML(member.role)}</span></div></div><span class="load-pill">${load === 0 ? 'Libre' : load < 45 ? 'Léger' : load < 75 ? 'Équilibré' : 'Chargé'}</span></div>
+      <div class="family-card-head"><div class="family-identity">${renderAvatar(member)}<div><strong>${escapeHTML(memberDisplayName(member))}</strong><span>${escapeHTML(member.role)}${member.nickname ? ` · ${escapeHTML(member.name)}` : ''}</span></div></div><span class="load-pill">${load === 0 ? 'Libre' : load < 45 ? 'Léger' : load < 75 ? 'Équilibré' : 'Chargé'}</span></div>
       <div class="family-load"><div class="load-copy"><span>Rythme de la semaine</span><strong>${load}%</strong></div><div class="load-track"><span style="width:${load === 0 ? 0 : Math.max(8, load)}%;--member-color:${member.color}"></span></div></div>
-      <div class="family-next"><div><span>Prochain moment</span><strong>${upcoming ? escapeHTML(upcoming.title) : 'Rien de prévu'}</strong></div><time>${upcoming ? `${capitalize(shortWeekday.format(parseISO(upcoming.date)).replace('.',''))} ${upcoming.time}` : '—'}</time></div>
+      <div class="family-next"><div><span>Prochain moment</span><strong>${upcoming ? escapeHTML(upcoming.title) : 'Rien de prévu'}</strong></div><time>${upcoming ? `${capitalize(shortWeekday.format(parseISO(upcoming.date)).replace('.',''))} ${upcoming.allDay ? 'journée' : upcoming.time}` : '—'}</time></div>
+      ${member.birthday ? `<div class="birthday-line"><span>🎂 Anniversaire</span><strong>${escapeHTML(formatBirthday(member.birthday))}</strong></div>` : ''}
+      ${canEdit ? `<button class="member-customize-button tap" data-edit-member="${member.id}">${icon('sparkles')} Personnaliser</button>` : ''}
     </article>`;
   }).join('');
 }
 
 function renderFocus(data) {
   const todayEvents = eventsForDate(data, toISO(new Date()), 'all');
-  const lastEvent = [...todayEvents].sort((a,b) => b.time.localeCompare(a.time))[0];
-  if (lastEvent) {
+  const hasAllDay = todayEvents.some((event) => event.allDay);
+  const lastEvent = todayEvents.filter((event) => !event.allDay).sort((a,b) => b.time.localeCompare(a.time))[0];
+  if (hasAllDay && !lastEvent) {
+    $('#calmHeadline').textContent = 'Une journée entière est déjà réservée, gardez de petites respirations.';
+  } else if (lastEvent) {
     const endMinutes = timeToMinutes(lastEvent.time) + lastEvent.duration;
     const hours = String(Math.floor(endMinutes / 60) % 24).padStart(2, '0');
     const minutes = String(endMinutes % 60).padStart(2, '0');
@@ -347,7 +386,8 @@ function renderFocus(data) {
 }
 
 function renderDialogMembers(data) {
-  $('#dialogMemberPicker').innerHTML = data.members.map((member, index) => `<label class="member-check"><input type="checkbox" name="memberIds" value="${member.id}" ${index === 0 ? 'checked' : ''}><span>${renderAvatar(member, { className: 'avatar' })}${escapeHTML(member.name)}</span></label>`).join('');
+  $('#dialogMemberPicker').innerHTML = data.members.map((member, index) => `<label class="member-check"><input type="checkbox" name="memberIds" value="${member.id}" ${index === 0 ? 'checked' : ''}><span>${renderAvatar(member, { className: 'avatar' })}${escapeHTML(memberDisplayName(member))}</span></label>`).join('');
+  $('#responsibleMemberSelect').innerHTML = `<option value="">Pas de responsable précis</option>` + data.members.map((member) => `<option value="${member.id}">${escapeHTML(memberDisplayName(member))}</option>`).join('');
 }
 
 function switchView(view) {
@@ -381,6 +421,13 @@ function openEventDialog(eventId = null) {
   form.elements.eventId.value = '';
   form.elements.date.value = state.selectedDate;
   form.elements.time.value = new Date().toTimeString().slice(0, 5);
+  form.elements.allDay.checked = false;
+  form.elements.recurrence.value = 'none';
+  form.elements.recurrenceUntil.value = toISO(addDays(parseISO(state.selectedDate), 90));
+  $('#recurrenceUntilField').hidden = true;
+  $('#seriesEditNote').hidden = true;
+  $('#deleteSeriesButton').hidden = true;
+  toggleAllDayFields(false);
   $('#dialogTitle').textContent = 'Ajouter à la vie de famille';
   $('#eventSubmitButton').innerHTML = `Créer le moment ${icon('arrow-up-right')}`;
   $('#deleteCurrentEventButton').hidden = true;
@@ -396,6 +443,12 @@ function openEventDialog(eventId = null) {
     form.elements.category.value = item.category;
     form.elements.location.value = item.location || '';
     form.elements.notes.value = item.notes || '';
+    form.elements.allDay.checked = Boolean(item.allDay);
+    form.elements.responsibleMemberId.value = item.responsibleMemberId || '';
+    form.elements.recurrence.value = 'none';
+    $('#seriesEditNote').hidden = !item.seriesId;
+    $('#deleteSeriesButton').hidden = !item.seriesId;
+    toggleAllDayFields(Boolean(item.allDay));
     form.querySelectorAll('input[name="memberIds"]').forEach((input) => { input.checked = item.memberIds.includes(input.value); });
     $('#dialogTitle').textContent = 'Modifier ce moment';
     $('#eventSubmitButton').innerHTML = `Enregistrer ${icon('check')}`;
@@ -409,34 +462,84 @@ function openEventDialog(eventId = null) {
 
 function closeEventDialog() { if ($('#eventDialog').open) $('#eventDialog').close(); }
 
+function toggleAllDayFields(allDay) {
+  const form = $('#eventForm');
+  form.elements.time.disabled = allDay;
+  form.elements.duration.disabled = allDay;
+  if (allDay) {
+    form.elements.time.value = '00:00';
+    form.elements.duration.value = '120';
+  } else if (form.elements.time.value === '00:00') {
+    form.elements.time.value = new Date().toTimeString().slice(0, 5);
+  }
+}
+
+function daysInMonth(year, monthIndex) { return new Date(year, monthIndex + 1, 0).getDate(); }
+
+function generateRecurrenceDates(startIso, rule, untilIso) {
+  const start = parseISO(startIso);
+  const until = parseISO(untilIso || startIso);
+  if (rule === 'none') return [startIso];
+  const dates = [];
+  let cursor = new Date(start);
+  const originalDay = start.getDate();
+  for (let index = 0; index < 366 && cursor <= until; index += 1) {
+    dates.push(toISO(cursor));
+    if (rule === 'daily') cursor = addDays(cursor, 1);
+    else if (rule === 'weekly') cursor = addDays(cursor, 7);
+    else if (rule === 'monthly') {
+      const nextMonth = cursor.getMonth() + 1;
+      const nextYear = cursor.getFullYear() + Math.floor(nextMonth / 12);
+      const normalizedMonth = ((nextMonth % 12) + 12) % 12;
+      cursor = new Date(nextYear, normalizedMonth, Math.min(originalDay, daysInMonth(nextYear, normalizedMonth)));
+    } else if (rule === 'yearly') {
+      const year = cursor.getFullYear() + 1;
+      cursor = new Date(year, start.getMonth(), Math.min(originalDay, daysInMonth(year, start.getMonth())));
+    } else break;
+  }
+  return dates;
+}
+
 function handleEventSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
   const memberIds = form.getAll('memberIds');
   if (!memberIds.length) { showToast('Choisis au moins un membre.'); return; }
-  const payload = {
+  const eventId = String(form.get('eventId') || '');
+  const allDay = form.get('allDay') === 'on';
+  const recurrenceRule = eventId ? 'none' : String(form.get('recurrence') || 'none');
+  const basePayload = {
     title: String(form.get('title')).trim(),
     date: String(form.get('date')),
-    time: String(form.get('time')),
-    duration: Number(form.get('duration')),
+    time: allDay ? '00:00' : String(form.get('time') || '00:00'),
+    duration: allDay ? 1440 : Number(form.get('duration')),
+    allDay,
     category: String(form.get('category')),
     location: String(form.get('location')).trim(),
     notes: String(form.get('notes')).trim(),
+    responsibleMemberId: String(form.get('responsibleMemberId') || ''),
     memberIds
   };
-  const eventId = String(form.get('eventId') || '');
+
   if (eventId) {
-    store.updateEvent(eventId, payload);
+    const existing = store.getState().events.find((item) => item.id === eventId);
+    store.updateEvent(eventId, { ...basePayload, seriesId: existing?.seriesId || '', recurrenceRule: existing?.recurrenceRule || 'none' });
     showToast(navigator.onLine ? 'Modification enregistrée.' : 'Modification gardée hors-ligne.');
+  } else if (recurrenceRule !== 'none') {
+    const until = String(form.get('recurrenceUntil') || '');
+    if (!until || until < basePayload.date) { showToast('Choisis une date de fin valide pour la répétition.'); return; }
+    const dates = generateRecurrenceDates(basePayload.date, recurrenceRule, until);
+    const seriesId = crypto.randomUUID?.() || `series-${Date.now()}`;
+    store.addEvents(dates.map((date) => ({ ...basePayload, date, seriesId, recurrenceRule })));
+    showToast(`${dates.length} rendez-vous récurrents créés.`);
   } else {
-    store.addEvent(payload);
+    store.addEvent({ ...basePayload, seriesId: '', recurrenceRule: 'none' });
     showToast(navigator.onLine ? 'Le moment a été ajouté.' : 'Moment ajouté hors-ligne.');
   }
-  state.selectedDate = payload.date;
+  state.selectedDate = basePayload.date;
   state.weekAnchor = startOfWeek(parseISO(state.selectedDate));
   closeEventDialog();
 }
-
 function deleteCurrentEvent() {
   const form = $('#eventForm');
   const id = form.elements.eventId.value;
@@ -446,6 +549,16 @@ function deleteCurrentEvent() {
   store.deleteEvent(id);
   closeEventDialog();
   showToast(navigator.onLine ? 'Événement supprimé.' : 'Suppression gardée hors-ligne.');
+}
+
+function deleteCurrentSeries() {
+  const id = $('#eventForm').elements.eventId.value;
+  const item = store.getState().events.find((event) => event.id === id);
+  if (!item?.seriesId) return;
+  if (!confirm(`Supprimer toute la série « ${item.title} » ?`)) return;
+  store.deleteSeries(item.seriesId);
+  closeEventDialog();
+  showToast('Toute la série a été supprimée.');
 }
 
 function showToast(message) {
@@ -490,6 +603,10 @@ function renderAccount() {
   $('#removeProfilePhotoButton').hidden = !user.avatarUrl;
   $('#inviteButton').hidden = user.role !== 'admin';
   $('#exportButton').hidden = false;
+  const data = store.getState();
+  $('#familyNameInput').value = data.family?.name || 'Famille Hamadi';
+  $('#familySymbolInput').value = data.family?.symbol || '🌿';
+  $('#familyIdentityPanel').hidden = user.role !== 'admin';
   const accountButton = $('#accountButton');
   accountButton.classList.toggle('with-avatar', Boolean(user.avatarUrl));
   accountButton.innerHTML = user.avatarUrl
@@ -605,6 +722,69 @@ async function removeProfilePhoto() {
   } finally {
     setProfilePhotoBusy(false);
   }
+}
+
+async function saveFamilyIdentity() {
+  const user = store.getCurrentUser();
+  if (user?.role !== 'admin') return;
+  const name = $('#familyNameInput').value.trim();
+  const symbol = $('#familySymbolInput').value.trim() || '🌿';
+  if (name.length < 2) { showToast('Choisis un nom de famille valide.'); return; }
+  const button = $('#saveFamilyIdentityButton');
+  button.disabled = true;
+  try {
+    await store.updateFamilyIdentity({ name, symbol });
+    render();
+    renderAccount();
+    showToast(`Bienvenue, ${name}.`);
+  } catch (error) { showToast(error.message || 'Modification impossible.'); }
+  finally { button.disabled = false; }
+}
+
+function openMemberEditDialog(memberId) {
+  const member = memberById(store.getState(), memberId);
+  if (!member || store.getCurrentUser()?.role !== 'admin') return;
+  $('#memberEditId').value = member.id;
+  $('#memberNicknameInput').value = member.nickname || '';
+  $('#memberColorInput').value = member.color || '#224A54';
+  $('#memberBirthdayInput').value = member.birthday || '';
+  $('#memberPhotoInput').value = '';
+  $('#removeMemberPhotoButton').hidden = !member.avatarUrl;
+  $('#memberEditTitle').textContent = `Personnaliser ${member.name}`;
+  $('#memberEditPreview').innerHTML = `${renderAvatar(member, { className: 'member-edit-avatar' })}<div><strong>${escapeHTML(memberDisplayName(member))}</strong><span>${escapeHTML(member.role)}</span></div>`;
+  $('#memberEditDialog').showModal();
+  vibration();
+}
+
+function closeMemberEditDialog() { if ($('#memberEditDialog').open) $('#memberEditDialog').close(); }
+
+async function saveMemberPresentation() {
+  const id = $('#memberEditId').value;
+  const member = memberById(store.getState(), id);
+  if (!member) return;
+  const file = $('#memberPhotoInput').files?.[0];
+  const avatarUrl = file ? await optimizeProfilePhoto(file) : member.avatarUrl;
+  const button = $('#saveMemberPresentationButton');
+  button.disabled = true;
+  try {
+    await store.updateMemberPresentation(id, { nickname: $('#memberNicknameInput').value, color: $('#memberColorInput').value, avatarUrl, birthday: $('#memberBirthdayInput').value });
+    closeMemberEditDialog();
+    render();
+    showToast(`${member.name} a été personnalisé.`);
+  } catch (error) { showToast(error.message || 'Modification impossible.'); }
+  finally { button.disabled = false; }
+}
+
+async function removeMemberPhoto() {
+  const id = $('#memberEditId').value;
+  const member = memberById(store.getState(), id);
+  if (!member || !confirm(`Retirer la photo de ${member.name} ?`)) return;
+  try {
+    await store.updateMemberPresentation(id, { nickname: $('#memberNicknameInput').value, color: $('#memberColorInput').value, avatarUrl: null, birthday: $('#memberBirthdayInput').value });
+    openMemberEditDialog(id);
+    render();
+    showToast('Photo retirée.');
+  } catch (error) { showToast(error.message || 'Impossible de retirer la photo.'); }
 }
 
 function setAuthBusy(form, busy) {
@@ -772,9 +952,13 @@ function setupEvents() {
     if (event.target.closest('[data-open-event]')) openEventDialog();
     if (event.target.closest('[data-close-dialog]')) closeEventDialog();
     if (event.target.closest('[data-close-account]')) closeAccountDialog();
+    if (event.target.closest('[data-close-member-edit]')) closeMemberEditDialog();
 
     const authModeButton = event.target.closest('[data-auth-mode]');
     if (authModeButton) showAuthMode(authModeButton.dataset.authMode);
+
+    const memberEditButton = event.target.closest('[data-edit-member]');
+    if (memberEditButton) openMemberEditDialog(memberEditButton.dataset.editMember);
 
     const editButton = event.target.closest('[data-edit-event]');
     if (editButton) openEventDialog(editButton.dataset.editEvent);
@@ -800,6 +984,9 @@ function setupEvents() {
   $('#agendaTodayButton').addEventListener('click', () => { selectDate(toISO(new Date())); switchView('agenda'); });
   $('#eventForm').addEventListener('submit', handleEventSubmit);
   $('#deleteCurrentEventButton').addEventListener('click', deleteCurrentEvent);
+  $('#deleteSeriesButton').addEventListener('click', deleteCurrentSeries);
+  $('#allDayToggle').addEventListener('change', (event) => toggleAllDayFields(event.target.checked));
+  $('#eventForm').elements.recurrence.addEventListener('change', (event) => { $('#recurrenceUntilField').hidden = event.target.value === 'none'; });
   $('#quietModeToggle').addEventListener('change', (event) => { store.setSetting('quietMode', event.target.checked); showToast(event.target.checked ? 'Mode doux activé.' : 'Mode doux désactivé.'); });
   $('#protectMomentButton').addEventListener('click', () => { openEventDialog(); $('#eventForm').elements.title.value = 'Temps pour soi'; });
   $('#accountButton').addEventListener('click', openAccountDialog);
@@ -808,8 +995,11 @@ function setupEvents() {
   $('#manageAccessButton').addEventListener('click', openAccountDialog);
   $('#inviteButton').addEventListener('click', createInvitation);
   $('#copyInviteButton').addEventListener('click', copyInviteLink);
+  $('#saveFamilyIdentityButton').addEventListener('click', saveFamilyIdentity);
   $('#profilePhotoInput').addEventListener('change', handleProfilePhotoSelection);
   $('#removeProfilePhotoButton').addEventListener('click', removeProfilePhoto);
+  $('#saveMemberPresentationButton').addEventListener('click', saveMemberPresentation);
+  $('#removeMemberPhotoButton').addEventListener('click', removeMemberPhoto);
   $('#exportButton').addEventListener('click', () => { store.exportData(); showToast('Sauvegarde téléchargée.'); });
   $('#logoutButton').addEventListener('click', async () => { closeAccountDialog(); await store.logout(); applyAuthUI(); });
   $('#resetButton').addEventListener('click', () => {
@@ -826,6 +1016,7 @@ function setupEvents() {
   $('#installButton').addEventListener('click', installApp);
   $('#eventDialog').addEventListener('click', (event) => { if (event.target === $('#eventDialog')) closeEventDialog(); });
   $('#accountDialog').addEventListener('click', (event) => { if (event.target === $('#accountDialog')) closeAccountDialog(); });
+  $('#memberEditDialog').addEventListener('click', (event) => { if (event.target === $('#memberEditDialog')) closeMemberEditDialog(); });
   $('#loginForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.login(payload)); });
   $('#setupForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.setup(payload)); });
   $('#inviteForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.acceptInvite(payload)); });
@@ -855,7 +1046,8 @@ function setupEvents() {
     const form = event.currentTarget;
     setAuthBusy(form, true);
     try {
-      await store.createFamilyForCurrentAccount(new FormData(form).get('displayName'));
+      const data = new FormData(form);
+      await store.createFamilyForCurrentAccount(data.get('displayName'), data.get('familyName'), data.get('familySymbol'));
       applyAuthUI();
       showToast('La famille est prête.');
     } catch (error) { showAuthError(error.message || 'Création impossible.'); }

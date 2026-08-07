@@ -118,3 +118,8 @@ Chrome → menu → **Installer l’application** ou **Ajouter à l’écran d�
 
 ## Mise à jour depuis une version déjà en ligne
 Si ton agenda fonctionne déjà, exécute simplement `supabase/upgrade_v3_2_profile_photos.sql` dans Supabase, puis remplace les fichiers du dépôt GitHub par cette version et valide un nouveau commit.
+
+
+## Mise à jour v3.3 depuis un agenda déjà fonctionnel
+
+Exécuter `supabase/upgrade_v3_3_family_experience.sql`, puis publier les fichiers v3.3. Pour éviter d’écraser les vraies valeurs Supabase déjà présentes dans ton dépôt, utiliser de préférence le pack de mise à jour qui n’inclut pas `js/config.js`. Voir `MISE_A_JOUR_V3_3.md`.

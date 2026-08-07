@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=3.2.0">
+  <link rel="stylesheet" href="styles.css?v=3.3.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -53,7 +53,7 @@
       <img class="auth-logo" src="assets/brand/logo-horizontal.svg" alt="AGENDA">
       <div class="auth-intro">
         <p class="eyebrow">Agenda familial privé</p>
-        <h1 id="authTitle">Votre famille,<br>au même rythme</h1>
+        <h1 id="authTitle">Votre famille,<br>au même rythme.</h1>
         <p id="authSubtitle">Connectez-vous pour retrouver l’agenda partagé.</p>
       </div>
 
@@ -73,6 +73,10 @@
       <form id="setupForm" class="auth-form" hidden>
         <div class="auth-notice"><strong>Premier lancement</strong><span>Nacer crée le compte administrateur et la famille vide.</span></div>
         <label class="field"><span>Prénom</span><input name="displayName" value="Nacer" maxlength="60" required></label>
+        <div class="family-name-row">
+          <label class="field"><span>Nom de votre famille</span><input name="familyName" value="Famille Hamadi" maxlength="100" required></label>
+          <label class="field family-symbol-field"><span>Symbole</span><input name="familySymbol" value="🌿" maxlength="8" aria-label="Symbole de la famille"></label>
+        </div>
         <label class="field"><span>Adresse e-mail de Nacer</span><input name="email" type="email" autocomplete="email" required></label>
         <label class="field"><span>Mot de passe</span><input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
         <label class="field"><span>Confirmer le mot de passe</span><input name="passwordConfirm" type="password" autocomplete="new-password" minlength="10" required></label>
@@ -115,6 +119,8 @@
         <div class="auth-notice"><strong>Compte connecté, famille absente</strong><span>Crée la famille de Nacer ou rejoins-la avec un code d’invitation.</span></div>
         <form id="createCurrentFamilyForm" class="nested-auth-form">
           <label class="field"><span>Prénom administrateur</span><input name="displayName" value="Nacer" required></label>
+          <label class="field"><span>Nom de la famille</span><input name="familyName" value="Famille Hamadi" required></label>
+          <label class="field"><span>Symbole</span><input name="familySymbol" value="🌿" maxlength="8"></label>
           <button class="primary-button tap" type="submit">Créer la famille</button>
         </form>
         <form id="joinCurrentFamilyForm" class="nested-auth-form">
@@ -155,7 +161,7 @@
         <div class="welcome-row reveal">
           <div>
             <p class="eyebrow" id="todayEyebrow">Mercredi 5 août</p>
-            <h1><span id="greeting">Bonsoir</span>, la famille</h1>
+            <h1><span id="greeting">Bonsoir</span>, <span id="familyGreeting">Famille Hamadi</span>.</h1>
           </div>
           <button class="date-orbit tap" id="goTodayButton" aria-label="Revenir à aujourd'hui">
             <span class="date-orbit-ring"></span>
@@ -168,7 +174,8 @@
           <div class="hero-glow"></div>
           <div class="hero-content">
             <p class="hero-kicker"><svg><use href="#i-sparkles"></use></svg> Le rythme familial</p>
-            <h2 id="heroTitle">Votre journée à construire,<br><em>ensemble et simplement</em></h2>
+            <h2 id="heroTitle">Votre journée à construire,<br><em>ensemble et simplement.</em></h2>
+            <p class="hero-summary" id="heroSummary">Une vue claire de ce qui compte aujourd’hui.</p>
             <div class="hero-pulse">
               <div class="pulse-copy"><strong id="heroEventCount">0 rendez-vous</strong><span>planifiés aujourd’hui</span></div>
               <div class="pulse-meter" aria-label="Charge de la journée"><span id="pulseMeterFill"></span></div>
@@ -275,7 +282,7 @@
         <div class="page-heading reveal">
           <div>
             <p class="eyebrow">Votre cercle</p>
-            <h1 id="familyTitle">Chacun son rythme<br>Une seule harmonie</h1>
+            <h1 id="familyTitle"><span id="familySymbolTitle">🌿</span> <span id="familyNameTitle">Famille Hamadi</span><br><small>Chacun son rythme. Une seule harmonie.</small></h1>
           </div>
           <button class="icon-button tap" id="addMemberButton" aria-label="Ajouter un membre"><svg><use href="#i-plus"></use></svg></button>
         </div>
@@ -357,12 +364,17 @@
         <label class="field"><span>Date</span><input type="date" name="date" required></label>
         <label class="field"><span>Heure</span><input type="time" name="time" required></label>
         <label class="field"><span>Durée</span><select name="duration"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 h</option><option value="90">1 h 30</option><option value="120">2 h</option></select></label>
+        <label class="switch-field field-wide"><span><strong>Toute la journée</strong><small>Pour un anniversaire, des vacances ou une journée spéciale.</small></span><span class="switch"><input type="checkbox" name="allDay" id="allDayToggle"><span></span></span></label>
+        <label class="field"><span>Répétition</span><select name="recurrence"><option value="none">Aucune</option><option value="daily">Tous les jours</option><option value="weekly">Chaque semaine</option><option value="monthly">Chaque mois</option><option value="yearly">Chaque année</option></select></label>
+        <label class="field" id="recurrenceUntilField" hidden><span>Jusqu’au</span><input type="date" name="recurrenceUntil"></label>
         <label class="field"><span>Catégorie</span><select name="category"><option value="family">Famille</option><option value="school">École</option><option value="health">Santé</option><option value="work">Travail</option><option value="sport">Sport</option><option value="home">Maison</option></select></label>
         <label class="field field-wide"><span>Lieu</span><input name="location" maxlength="100" placeholder="Facultatif"></label>
         <fieldset class="member-picker field-wide"><legend>Pour qui ?</legend><div id="dialogMemberPicker"></div></fieldset>
+        <label class="field field-wide"><span>Qui s’en occupe ?</span><select name="responsibleMemberId" id="responsibleMemberSelect"><option value="">Pas de responsable précis</option></select><small class="field-hint">Ex. Chacha a rendez-vous, Nacer l’accompagne.</small></label>
+        <div class="series-edit-note field-wide" id="seriesEditNote" hidden>Cette occurrence fait partie d’une série. Les modifications ci-dessous concernent uniquement ce rendez-vous.</div>
         <label class="field field-wide"><span>Note</span><textarea name="notes" rows="3" maxlength="300" placeholder="Une information utile pour la famille…"></textarea></label>
       </div>
-      <div class="dialog-actions"><button class="danger-text-button tap" type="button" id="deleteCurrentEventButton" hidden><svg><use href="#i-trash"></use></svg>Supprimer</button><button class="primary-button submit-button tap" id="eventSubmitButton" type="submit">Créer le moment <svg><use href="#i-arrow-up-right"></use></svg></button></div>
+      <div class="dialog-actions"><button class="danger-text-button tap" type="button" id="deleteCurrentEventButton" hidden><svg><use href="#i-trash"></use></svg>Supprimer</button><button class="danger-text-button tap" type="button" id="deleteSeriesButton" hidden><svg><use href="#i-trash"></use></svg>Supprimer la série</button><button class="primary-button submit-button tap" id="eventSubmitButton" type="submit">Créer le moment <svg><use href="#i-arrow-up-right"></use></svg></button></div>
     </form>
   </dialog>
 
@@ -379,6 +391,14 @@
         <div><strong id="accountName">Nacer</strong><span id="accountEmail"></span></div>
         <span class="account-role" id="accountRole">Administrateur</span>
       </div>
+      <section class="family-identity-panel" id="familyIdentityPanel">
+        <div class="profile-photo-copy"><strong>Identité de la famille</strong><p>Ce nom apparaît dans l’accueil et les espaces partagés.</p></div>
+        <div class="family-identity-fields">
+          <label class="field"><span>Nom</span><input id="familyNameInput" maxlength="100" placeholder="Famille Hamadi"></label>
+          <label class="field family-symbol-field"><span>Symbole</span><input id="familySymbolInput" maxlength="8" placeholder="🌿"></label>
+        </div>
+        <button class="secondary-button tap" id="saveFamilyIdentityButton" type="button">Enregistrer l’identité</button>
+      </section>
       <section class="profile-photo-panel">
         <div class="profile-photo-copy">
           <strong>Photo de profil</strong>
@@ -404,7 +424,29 @@
     </section>
   </dialog>
 
+  <dialog class="account-dialog" id="memberEditDialog" aria-labelledby="memberEditTitle">
+    <section class="account-sheet member-edit-sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div><p class="eyebrow">Profil familial</p><h2 id="memberEditTitle">Personnaliser</h2></div>
+        <button type="button" class="icon-button tap" data-close-member-edit aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
+      </header>
+      <input type="hidden" id="memberEditId">
+      <div class="member-edit-preview" id="memberEditPreview"></div>
+      <div class="form-grid">
+        <label class="field field-wide"><span>Surnom affiché</span><input id="memberNicknameInput" maxlength="40" placeholder="Ex. Papa, Maman, Chachou…"></label>
+        <label class="field"><span>Couleur</span><input id="memberColorInput" type="color" value="#224A54"></label>
+        <label class="field"><span>Anniversaire</span><input id="memberBirthdayInput" type="date"></label>
+        <label class="field field-wide"><span>Photo</span><input id="memberPhotoInput" type="file" accept="image/*"></label>
+      </div>
+      <div class="member-edit-actions">
+        <button class="danger-text-button tap" id="removeMemberPhotoButton" type="button"><svg><use href="#i-trash"></use></svg>Retirer la photo</button>
+        <button class="primary-button tap" id="saveMemberPresentationButton" type="button">Enregistrer</button>
+      </div>
+    </section>
+  </dialog>
+
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=3.2.0"></script>
+  <script type="module" src="js/app.js?v=3.3.0"></script>
 </body>
 </html>
