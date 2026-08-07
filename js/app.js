@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.1.0';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.1.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.1.1';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.1.1';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -170,7 +170,7 @@ function getGreeting() {
   return 'Bonsoir';
 }
 
-const APP_VERSION = '4.1.0';
+const APP_VERSION = '4.1.1';
 const VERSION_SEEN_KEY = 'agenda-version-seen';
 let temporalTimer = 0;
 let previousOnlineState = navigator.onLine;
@@ -188,6 +188,57 @@ function currentDayPhase(date = new Date()) {
   if (hour < 18) return 'day';
   if (hour < 22) return 'evening';
   return 'night';
+}
+
+const AMBIENT_KEYFRAMES = [
+  { minute: 0,    warm:[128,111,92], cool:[34,74,84],  wash:[20,45,49],   warmA:.035, coolA:.105, washA:.035, x:76, y:10, cx:10, cy:72, stars:.34 },
+  { minute: 390,  warm:[224,177,103],cool:[66,118,116], wash:[246,238,216],warmA:.145, coolA:.070, washA:.035, x:18, y:22, cx:84, cy:74, stars:.05 },
+  { minute: 510,  warm:[226,191,126],cool:[74,129,124], wash:[255,248,228],warmA:.125, coolA:.065, washA:.050, x:34, y:12, cx:79, cy:68, stars:0 },
+  { minute: 750,  warm:[239,216,164],cool:[64,125,132], wash:[255,250,237],warmA:.100, coolA:.055, washA:.045, x:57, y:7,  cx:14, cy:68, stars:0 },
+  { minute: 1020, warm:[228,184,112],cool:[58,110,116], wash:[250,238,216],warmA:.120, coolA:.065, washA:.038, x:76, y:13, cx:10, cy:70, stars:0 },
+  { minute: 1170, warm:[211,143,79], cool:[45,88,98],   wash:[244,222,190],warmA:.185, coolA:.095, washA:.048, x:87, y:22, cx:9,  cy:66, stars:.025 },
+  { minute: 1320, warm:[154,119,82], cool:[36,73,84],   wash:[29,53,57],   warmA:.065, coolA:.120, washA:.035, x:84, y:11, cx:12, cy:72, stars:.22 },
+  { minute: 1440, warm:[128,111,92], cool:[34,74,84],   wash:[20,45,49],   warmA:.035, coolA:.105, washA:.035, x:76, y:10, cx:10, cy:72, stars:.34 }
+];
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function lerpRGB(a, b, t) { return a.map((value, index) => Math.round(lerp(value, b[index], t))); }
+function ambientStateFor(date = new Date()) {
+  const minute = date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60;
+  let left = AMBIENT_KEYFRAMES[0];
+  let right = AMBIENT_KEYFRAMES[AMBIENT_KEYFRAMES.length - 1];
+  for (let index = 0; index < AMBIENT_KEYFRAMES.length - 1; index += 1) {
+    const a = AMBIENT_KEYFRAMES[index];
+    const b = AMBIENT_KEYFRAMES[index + 1];
+    if (minute >= a.minute && minute <= b.minute) { left = a; right = b; break; }
+  }
+  const span = Math.max(1, right.minute - left.minute);
+  const raw = Math.min(1, Math.max(0, (minute - left.minute) / span));
+  const t = raw * raw * (3 - 2 * raw);
+  return {
+    warm: lerpRGB(left.warm, right.warm, t), cool: lerpRGB(left.cool, right.cool, t), wash: lerpRGB(left.wash, right.wash, t),
+    warmA: lerp(left.warmA, right.warmA, t), coolA: lerp(left.coolA, right.coolA, t), washA: lerp(left.washA, right.washA, t),
+    x: lerp(left.x, right.x, t), y: lerp(left.y, right.y, t), cx: lerp(left.cx, right.cx, t), cy: lerp(left.cy, right.cy, t),
+    stars: lerp(left.stars, right.stars, t), progress: Math.min(1, Math.max(0, minute / 1440))
+  };
+}
+
+function applyDynamicAmbience(date = new Date()) {
+  const root = document.documentElement;
+  const ambient = ambientStateFor(date);
+  root.dataset.dayPhase = currentDayPhase(date);
+  root.style.setProperty('--ambient-warm-rgb', ambient.warm.join(','));
+  root.style.setProperty('--ambient-cool-rgb', ambient.cool.join(','));
+  root.style.setProperty('--ambient-wash-rgb', ambient.wash.join(','));
+  root.style.setProperty('--ambient-warm-a', ambient.warmA.toFixed(3));
+  root.style.setProperty('--ambient-cool-a', ambient.coolA.toFixed(3));
+  root.style.setProperty('--ambient-wash-a', ambient.washA.toFixed(3));
+  root.style.setProperty('--ambient-sun-x', `${ambient.x.toFixed(1)}%`);
+  root.style.setProperty('--ambient-sun-y', `${ambient.y.toFixed(1)}%`);
+  root.style.setProperty('--ambient-cool-x', `${ambient.cx.toFixed(1)}%`);
+  root.style.setProperty('--ambient-cool-y', `${ambient.cy.toFixed(1)}%`);
+  root.style.setProperty('--ambient-stars', ambient.stars.toFixed(3));
+  root.style.setProperty('--day-progress', `${(ambient.progress * 100).toFixed(2)}%`);
 }
 
 function relativeMomentLabel(minutes) {
@@ -227,7 +278,7 @@ function renderLiveMoment(data = store.getState()) {
   const button = $('#liveMomentButton');
   if (!button) return;
   const now = new Date();
-  document.documentElement.dataset.dayPhase = currentDayPhase(now);
+  applyDynamicAmbience(now);
   const live = liveMomentFor(data);
   $('#liveMomentKicker').textContent = live.kicker;
   $('#liveMomentTitle').textContent = live.title;
@@ -235,6 +286,13 @@ function renderLiveMoment(data = store.getState()) {
   $('#liveMomentMeta').textContent = live.meta;
   button.dataset.liveEventId = live.event?.id || '';
   button.className = `live-moment tap is-${live.type}`;
+  let urgency = 'calm';
+  if (live.event && live.type !== 'active') {
+    const { start } = eventTiming(live.event);
+    const minutesUntil = Math.max(0, Math.ceil((start - now) / 60000));
+    urgency = minutesUntil <= 30 ? 'near' : minutesUntil <= 120 ? 'soon' : 'calm';
+  } else if (live.type === 'active') urgency = 'active';
+  button.dataset.urgency = urgency;
   button.setAttribute('aria-label', live.event ? `Ouvrir ${live.event.title}` : `${live.title}, ${live.meta}`);
 }
 
@@ -295,7 +353,7 @@ function setupTemporalUI() {
 function announceVersionIfNeeded() {
   const previous = localStorage.getItem(VERSION_SEEN_KEY);
   localStorage.setItem(VERSION_SEEN_KEY, APP_VERSION);
-  if (previous && previous !== APP_VERSION) window.setTimeout(() => showToast('AGENDA 4.1 est prête ✨'), 900);
+  if (previous && previous !== APP_VERSION) window.setTimeout(() => showToast('AGENDA 4.1.1 est prête ✨'), 900);
 }
 
 // Rendu central : chaque vue lit le même état local-first.
@@ -647,7 +705,8 @@ function eventCard(event, data) {
   const people = event.memberIds.map((id) => memberById(data, id)).filter(Boolean);
   const responsible = event.responsibleMemberId ? memberById(data, event.responsibleMemberId) : null;
   const shared = collaborationSummary(data, 'event', event.id);
-  return `<article class="event-card" style="--event-color:${category.color}" data-event-id="${event.id}">
+  const familyTogether = data.members.length > 1 && data.members.every((member) => event.memberIds.includes(member.id));
+  return `<article class="event-card ${familyTogether ? 'is-family-together' : ''}" style="--event-color:${category.color}" data-event-id="${event.id}">
     <div class="event-top">
       <div>
         <span class="event-time">${icon('clock')}${event.allDay ? 'Toute la journée' : `${event.time} · ${formatDuration(event.duration)}`}${event.seriesId ? ' · Récurrent' : ''}</span>

@@ -1795,3 +1795,134 @@ html[data-theme="dark"] .timeline-now { color:#D7E3DF; background:linear-gradien
 @keyframes v41CompletionPop { 0% { transform:scale(1); } 45% { transform:scale(1.16); } 100% { transform:scale(1); } }
 @keyframes v41FamilyPhotoDrift { 0% { transform:scale(1.025) translate3d(-.4%,0,0); } 100% { transform:scale(1.065) translate3d(.8%,-.5%,0); } }
 @keyframes v41HeroTreeDrift { 0% { transform:rotate(-3deg) translate3d(0,0,0) scale(1); } 100% { transform:rotate(-1.5deg) translate3d(-5px,-7px,0) scale(1.035); } }
+
+
+/* v4.1.1 — ambiance dynamique & micro-détails vivants */
+:root {
+  --ambient-warm-rgb: 211,143,79;
+  --ambient-cool-rgb: 45,88,98;
+  --ambient-wash-rgb: 244,222,190;
+  --ambient-warm-a: .15;
+  --ambient-cool-a: .08;
+  --ambient-wash-a: .04;
+  --ambient-sun-x: 82%;
+  --ambient-sun-y: 16%;
+  --ambient-cool-x: 8%;
+  --ambient-cool-y: 68%;
+  --ambient-stars: 0;
+  --day-progress: 50%;
+}
+
+body::before {
+  background:
+    radial-gradient(circle at var(--ambient-sun-x) var(--ambient-sun-y), rgba(var(--ambient-warm-rgb), var(--ambient-warm-a)), transparent 30%),
+    radial-gradient(circle at var(--ambient-cool-x) var(--ambient-cool-y), rgba(var(--ambient-cool-rgb), var(--ambient-cool-a)), transparent 32%),
+    linear-gradient(180deg, rgba(var(--ambient-wash-rgb), var(--ambient-wash-a)), transparent 72%);
+  transition: background 3.6s ease, opacity 3.6s ease;
+  will-change: opacity, transform;
+}
+
+.app-shell::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:-2;
+  pointer-events:none;
+  opacity:var(--ambient-stars);
+  background:
+    radial-gradient(circle at 12% 17%, rgba(246,238,216,.72) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 32% 8%, rgba(231,213,167,.58) 0 .8px, transparent 1.5px),
+    radial-gradient(circle at 71% 14%, rgba(246,238,216,.58) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 88% 31%, rgba(231,213,167,.45) 0 .8px, transparent 1.5px),
+    radial-gradient(circle at 58% 38%, rgba(246,238,216,.4) 0 .7px, transparent 1.4px),
+    radial-gradient(circle at 22% 49%, rgba(246,238,216,.36) 0 .8px, transparent 1.5px);
+  transition:opacity 4s ease;
+}
+
+html[data-animation-mode="live"] body::before { animation:v411AmbientBreathe 18s ease-in-out infinite alternate; }
+html[data-animation-mode="live"] .app-shell::before { animation:v411NightTwinkle 9s ease-in-out infinite alternate; }
+
+/* Les deux halos existants prennent désormais la couleur réelle du moment */
+.ambient-one {
+  background:radial-gradient(circle, rgba(var(--ambient-cool-rgb), calc(var(--ambient-cool-a) * 1.35)), transparent 70%);
+  transition:background 3.8s ease, opacity 3.8s ease;
+}
+.ambient-two {
+  background:radial-gradient(circle, rgba(var(--ambient-warm-rgb), calc(var(--ambient-warm-a) * 1.05)), transparent 68%);
+  transition:background 3.8s ease, opacity 3.8s ease;
+}
+
+/* Ligne de progression de la journée dans Maintenant */
+.live-moment::before {
+  content:"";
+  position:absolute;
+  left:0;
+  bottom:0;
+  width:var(--day-progress);
+  height:2px;
+  z-index:3;
+  pointer-events:none;
+  border-radius:0 999px 999px 0;
+  background:linear-gradient(90deg,rgba(231,213,167,.12),rgba(231,213,167,.78));
+  box-shadow:0 0 10px rgba(199,154,92,.13);
+  transition:width 1.6s ease;
+}
+.live-moment[data-urgency="near"] {
+  border-color:rgba(231,213,167,.23);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 0 0 1px rgba(199,154,92,.025),0 10px 35px rgba(199,154,92,.075);
+}
+html[data-animation-mode="live"] .live-moment[data-urgency="near"] { animation:v411NearMoment 4.2s ease-in-out infinite; }
+
+/* Un moment où toute la famille est concernée reçoit un halo presque imperceptible */
+.event-card.is-family-together {
+  border-color:color-mix(in srgb, var(--event-color) 30%, rgba(199,154,92,.24));
+  box-shadow:0 12px 34px rgba(34,74,84,.055), inset 0 1px 0 rgba(255,255,255,.55), 0 0 0 1px rgba(199,154,92,.025);
+}
+html[data-animation-mode="live"] .event-card.is-family-together { animation:v411TogetherGlow 8.5s ease-in-out infinite; }
+
+/* La date du jour capte une nuance différente selon l'heure */
+html[data-day-phase="morning"] .day-pill.is-today:not(.is-selected) { box-shadow:0 8px 24px rgba(213,170,102,.08); }
+html[data-day-phase="day"] .day-pill.is-today:not(.is-selected) { box-shadow:0 8px 24px rgba(45,102,113,.065); }
+html[data-day-phase="evening"] .day-pill.is-today:not(.is-selected) { box-shadow:0 8px 26px rgba(199,154,92,.11); }
+html[data-day-phase="night"] .day-pill.is-today:not(.is-selected) { box-shadow:0 8px 24px rgba(34,74,84,.09); }
+
+/* Le logo vit à peine : un détail que l'œil perçoit surtout après quelques secondes */
+html[data-animation-mode="live"] .brand-symbol { animation:v411BrandAlive 14s ease-in-out infinite; transform-origin:center; }
+
+/* Petit scintillement des anniversaires, uniquement en mode Vivantes */
+html[data-animation-mode="live"] .birthday-card > div:first-of-type::after { animation:v411BirthdayGlow 5.5s ease-in-out infinite; }
+
+html[data-theme="dark"] body::before { opacity:.84; }
+html[data-theme="dark"] .app-shell::before { filter:brightness(.82); }
+html[data-theme="dark"] .event-card.is-family-together { box-shadow:0 14px 36px rgba(0,0,0,.16),0 0 24px rgba(199,154,92,.035),inset 0 1px 0 rgba(255,255,255,.04); }
+
+@media (prefers-reduced-motion: reduce) {
+  body::before, .app-shell::before, .live-moment[data-urgency="near"], .event-card.is-family-together, .brand-symbol { animation:none !important; }
+}
+
+@keyframes v411AmbientBreathe {
+  0% { opacity:.88; transform:scale(1) translate3d(0,0,0); }
+  100% { opacity:1; transform:scale(1.018) translate3d(-.35%,.25%,0); }
+}
+@keyframes v411NightTwinkle {
+  0%,100% { filter:brightness(.82); }
+  48% { filter:brightness(1.2); }
+  65% { filter:brightness(.95); }
+}
+@keyframes v411NearMoment {
+  0%,100% { box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 10px 35px rgba(199,154,92,.055); }
+  50% { box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 12px 40px rgba(199,154,92,.115); }
+}
+@keyframes v411TogetherGlow {
+  0%,100% { box-shadow:0 12px 34px rgba(34,74,84,.055),inset 0 1px 0 rgba(255,255,255,.55),0 0 0 rgba(199,154,92,0); }
+  50% { box-shadow:0 14px 38px rgba(34,74,84,.065),inset 0 1px 0 rgba(255,255,255,.6),0 0 22px rgba(199,154,92,.07); }
+}
+@keyframes v411BrandAlive {
+  0%,76%,100% { transform:translate3d(0,0,0) rotate(0deg) scale(1); filter:none; }
+  82% { transform:translate3d(0,-1px,0) rotate(-1.2deg) scale(1.035); filter:drop-shadow(0 4px 7px rgba(199,154,92,.12)); }
+  89% { transform:translate3d(0,0,0) rotate(.55deg) scale(1.01); }
+}
+@keyframes v411BirthdayGlow {
+  0%,100% { opacity:.5; transform:scale(.96); }
+  50% { opacity:1; transform:scale(1.05); }
+}
