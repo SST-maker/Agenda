@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.3.0';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.3.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.4.0';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.4.0';
 
 
 // iOS/PWA can restore the previous vertical scroll position when the app is relaunched.
@@ -62,7 +62,9 @@ const state = {
   notificationEntityId: new URLSearchParams(location.search).get('entityId') || '',
   notificationMinutes: Number(new URLSearchParams(location.search).get('minutes') || 30),
   deferredInstallPrompt: null,
-  authMode: 'login'
+  authMode: 'login',
+  lastCreatedEventId: '',
+  lastTemporalDate: toISO(new Date())
 };
 
 const dateFormatter = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -210,7 +212,7 @@ function getGreeting() {
   return 'Bonsoir';
 }
 
-const APP_VERSION = '4.3.0';
+const APP_VERSION = '4.4.0';
 const VERSION_SEEN_KEY = 'agenda-version-seen';
 let temporalTimer = 0;
 let previousOnlineState = navigator.onLine;
@@ -439,8 +441,21 @@ function setupTemporalUI() {
     renderLiveMoment(store.getState());
     const marker = $('.timeline-now-time');
     if (marker) marker.textContent = new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
-    const group = groupForTime(new Date().toTimeString().slice(0,5));
-    if (state.activeView === 'home' && state.selectedDate === toISO(new Date()) && group !== lastGroup) renderTimeline(store.getState());
+    const liveNow = new Date();
+    const todayIso = toISO(liveNow);
+    const group = groupForTime(liveNow.toTimeString().slice(0,5));
+    if (state.lastTemporalDate !== todayIso) {
+      state.lastTemporalDate = todayIso;
+      state.selectedDate = todayIso;
+      state.weekAnchor = startOfWeek(liveNow);
+      document.documentElement.classList.add('day-transition');
+      window.setTimeout(() => document.documentElement.classList.remove('day-transition'), 1300);
+      render();
+    }
+    if (state.selectedDate === todayIso) {
+      renderTimeline(store.getState());
+      if (state.activeView === 'agenda') renderAgenda(store.getState());
+    }
     renderContextualHome(store.getState());
     if (state.activeView === 'home') renderHeader(store.getState());
     if (state.activeView === 'daily') renderDailyHub(store.getState());
@@ -660,30 +675,57 @@ function parseNaturalEventText(raw, data = store.getState()) {
   return { title: title.charAt(0).toUpperCase() + title.slice(1), date: toISO(date), time, duration, category: naturalCategory(text), memberIds: mentioned.map((m) => m.id), responsibleMemberId: responsible?.id || '' };
 }
 
+function naturalRecognitionSummary(parsed) {
+  const data = store.getState();
+  const people = parsed.memberIds.map((id) => memberById(data, id)).filter(Boolean).map(memberDisplayName);
+  const bits = [
+    ['calendar', capitalize(longDate.format(parseISO(parsed.date)))],
+    ['clock', parsed.time],
+    ['sparkles', formatDuration(parsed.duration)],
+    ...(people.length ? [['users', people.join(' · ')]] : [])
+  ];
+  return bits.map(([name, label], index) => `<span class="natural-recognition-chip" style="--recognition-index:${index}">${icon(name)}${escapeHTML(label)}</span>`).join('');
+}
+
 function prepareNaturalEvent() {
   const input = $('#naturalEventInput');
   const parsed = parseNaturalEventText(input?.value || '');
   if (!parsed) { showToast('Écris le rendez-vous comme tu le dirais naturellement'); input?.focus(); return; }
-  closeQuickAddDialog();
-  openEventDialog();
-  const form = $('#eventForm');
-  form.elements.title.value = parsed.title;
-  form.elements.date.value = parsed.date;
-  form.elements.time.value = parsed.time;
-  setEventEndFromDuration(parsed.duration);
-  form.elements.category.value = parsed.category;
-  if (parsed.responsibleMemberId) form.elements.responsibleMemberId.value = parsed.responsibleMemberId;
-  if (parsed.memberIds.length) form.querySelectorAll('input[name="memberIds"]').forEach((checkbox) => { checkbox.checked = parsed.memberIds.includes(checkbox.value); });
-  state.selectedDate = parsed.date;
-  state.weekAnchor = startOfWeek(parseISO(parsed.date));
-  showToast('AGENDA a préparé le rendez-vous · vérifie puis valide');
-  window.setTimeout(() => form.elements.title.focus(), 120);
+  const block = $('#naturalAddBlock');
+  const recognition = $('#naturalRecognition');
+  const hint = $('#naturalAddHint');
+  block?.classList.add('is-understanding');
+  if (recognition) { recognition.innerHTML = naturalRecognitionSummary(parsed); recognition.hidden = false; }
+  if (hint) hint.textContent = 'AGENDA comprend… date, heure, durée et personnes';
+  vibration();
+  window.setTimeout(() => {
+    block?.classList.remove('is-understanding');
+    closeQuickAddDialog();
+    openEventDialog();
+    const form = $('#eventForm');
+    form.elements.title.value = parsed.title;
+    form.elements.date.value = parsed.date;
+    form.elements.time.value = parsed.time;
+    setEventEndFromDuration(parsed.duration);
+    form.elements.category.value = parsed.category;
+    if (parsed.responsibleMemberId) form.elements.responsibleMemberId.value = parsed.responsibleMemberId;
+    if (parsed.memberIds.length) form.querySelectorAll('input[name="memberIds"]').forEach((checkbox) => { checkbox.checked = parsed.memberIds.includes(checkbox.value); });
+    state.selectedDate = parsed.date;
+    state.weekAnchor = startOfWeek(parseISO(parsed.date));
+    if (hint) hint.textContent = 'Ex. École Chacha demain 8h30 pendant 30 min avec Nacer';
+    if (recognition) { recognition.hidden = true; recognition.innerHTML = ''; }
+    showToast('AGENDA a préparé le rendez-vous · vérifie puis valide');
+    window.setTimeout(() => form.elements.title.focus(), 120);
+  }, motionIsReduced() ? 80 : 620);
 }
 
 function openQuickAddDialog() {
   $('#quickAddDialog')?.showModal();
   const input = $('#naturalEventInput');
   if (input) input.value = '';
+  const recognition = $('#naturalRecognition');
+  if (recognition) { recognition.hidden = true; recognition.innerHTML = ''; }
+  $('#naturalAddBlock')?.classList.remove('is-understanding');
   vibration();
 }
 function closeQuickAddDialog() { if ($('#quickAddDialog')?.open) $('#quickAddDialog').close(); }
@@ -691,7 +733,7 @@ function closeQuickAddDialog() { if ($('#quickAddDialog')?.open) $('#quickAddDia
 function announceVersionIfNeeded() {
   const previous = localStorage.getItem(VERSION_SEEN_KEY);
   localStorage.setItem(VERSION_SEEN_KEY, APP_VERSION);
-  if (previous && previous !== APP_VERSION) window.setTimeout(() => showToast('AGENDA 4.3 est prête ✨'), 900);
+  if (previous && previous !== APP_VERSION) window.setTimeout(() => showToast('AGENDA 4.4 est prête ✨'), 900);
 }
 
 // Rendu central : chaque vue lit le même état local-first.
@@ -1063,16 +1105,40 @@ function groupForTime(time, allDay = false) {
   return 'Soirée';
 }
 
+function eventMicroState(event, now = new Date()) {
+  if (!event || event.allDay || event.date !== toISO(now)) return { urgency: 'calm', minutes: Infinity, active: false };
+  const timing = eventTiming(event);
+  if (timing.start <= now && timing.end > now) return { urgency: 'active', minutes: 0, active: true };
+  const minutes = Math.ceil((timing.start - now) / 60000);
+  if (minutes > 0 && minutes <= 10) return { urgency: 'imminent', minutes, active: false };
+  if (minutes > 10 && minutes <= 30) return { urgency: 'near', minutes, active: false };
+  return { urgency: 'calm', minutes, active: false };
+}
+
+function scheduleNewEventSettle(id) {
+  if (!id) return;
+  state.lastCreatedEventId = id;
+  window.setTimeout(() => {
+    if (state.lastCreatedEventId !== id) return;
+    const card = document.querySelector(`[data-event-id="${CSS.escape(id)}"]`);
+    card?.classList.remove('is-newly-created');
+    state.lastCreatedEventId = '';
+  }, 1500);
+}
+
 function eventCard(event, data) {
   const category = CATEGORY_META[event.category] || CATEGORY_META.family;
   const people = event.memberIds.map((id) => memberById(data, id)).filter(Boolean);
   const responsible = event.responsibleMemberId ? memberById(data, event.responsibleMemberId) : null;
   const shared = collaborationSummary(data, 'event', event.id);
   const familyTogether = data.members.length > 1 && data.members.every((member) => event.memberIds.includes(member.id));
-  return `<article class="event-card ${familyTogether ? 'is-family-together' : ''}" style="--event-color:${category.color}" data-event-id="${event.id}">
+  const micro = eventMicroState(event);
+  const microClass = micro.urgency === 'imminent' ? 'is-imminent' : micro.urgency === 'near' ? 'is-near' : micro.active ? 'is-active-now' : '';
+  const createdClass = state.lastCreatedEventId === event.id ? 'is-newly-created' : '';
+  return `<article class="event-card ${familyTogether ? 'is-family-together' : ''} ${microClass} ${createdClass}" style="--event-color:${category.color}" data-event-id="${event.id}" data-urgency="${micro.urgency}">
     <div class="event-top">
       <div>
-        <span class="event-time">${icon('clock')}${event.allDay ? 'Toute la journée' : `${event.time}–${minutesToTime(timeToMinutesSafe(event.time) + Number(event.duration || 60))} · ${formatDuration(event.duration)}`}${event.seriesId ? ' · Récurrent' : ''}</span>
+        <span class="event-time">${micro.urgency === 'imminent' ? '<i class="event-urgency-dot" aria-hidden="true"></i>' : ''}${icon('clock')}${event.allDay ? 'Toute la journée' : `${event.time}–${minutesToTime(timeToMinutesSafe(event.time) + Number(event.duration || 60))} · ${formatDuration(event.duration)}`}${event.seriesId ? ' · Récurrent' : ''}</span>
         <h3>${escapeHTML(event.title)}</h3>
       </div>
       <button class="event-menu tap" data-edit-event="${event.id}" aria-label="Modifier ${escapeHTML(event.title)}">${icon('more')}</button>
@@ -1103,7 +1169,7 @@ function renderTimeline(data) {
     $('#timeline').innerHTML = `<div class="empty-state"><strong>Une respiration dans la semaine</strong><p>Aucun événement pour ce filtre. Ce temps est à vous.</p><button class="primary-button tap" data-open-event>${icon('plus')}Ajouter un moment</button></div>`;
     return;
   }
-  const birthdayCards = birthdays.map((member) => `<article class="birthday-card">${renderAvatar(member, { className: 'birthday-avatar' })}<div><span>🎂 Anniversaire</span><strong>${escapeHTML(memberDisplayName(member))}</strong><p>Une belle journée à célébrer ensemble.</p></div></article>`).join('');
+  const birthdayCards = birthdays.map((member) => `<article class="birthday-card">${renderAvatar(member, { className: 'birthday-avatar' })}<div><span>🎂 Anniversaire</span><strong>${escapeHTML(memberDisplayName(member))}</strong><p>Une belle journée à célébrer ensemble.</p></div><span class="birthday-sparkles" aria-hidden="true"><i></i><i></i><i></i></span></article>`).join('');
   const groups = ['Toute la journée', 'Matin', 'Après-midi', 'Soirée'];
   const nowMinutes = today.getHours() * 60 + today.getMinutes();
   const currentGroup = groupForTime(today.toTimeString().slice(0,5));
@@ -1320,7 +1386,11 @@ function switchView(view) {
   if (!['home','agenda','family','daily'].includes(view)) return;
   state.activeView = view;
   $$('.view').forEach((section) => section.classList.toggle('is-active', section.dataset.viewSection === view));
-  $$('.nav-item').forEach((button) => button.classList.toggle('is-active', button.dataset.view === view));
+  $$('.nav-item').forEach((button) => {
+    const active = button.dataset.view === view;
+    button.classList.toggle('is-active', active);
+    if (active && !motionIsReduced()) { button.classList.remove('nav-arrive'); requestAnimationFrame(() => button.classList.add('nav-arrive')); window.setTimeout(() => button.classList.remove('nav-arrive'), 700); }
+  });
   window.scrollTo({ top: 0, behavior: motionIsReduced() ? 'auto' : 'smooth' });
   requestAnimationFrame(() => replayActiveViewPremiumEntrance(view));
   vibration();
@@ -1503,7 +1573,8 @@ function handleEventSubmit(event) {
     store.addEvents(dates.map((date) => ({ ...basePayload, date, seriesId, recurrenceRule })));
     showToast(`${dates.length} rendez-vous récurrents créés.`);
   } else {
-    store.addEvent({ ...basePayload, seriesId: '', recurrenceRule: 'none' });
+    const created = store.addEvent({ ...basePayload, seriesId: '', recurrenceRule: 'none' });
+    scheduleNewEventSettle(created?.id);
     showToast(navigator.onLine ? 'Le moment a été ajouté.' : 'Moment ajouté hors-ligne.');
   }
   state.selectedDate = basePayload.date;
@@ -2952,6 +3023,18 @@ function setupPWA() {
   }
 }
 
+function setupIdleMicroMotion() {
+  let idleTimer = 0;
+  const markActive = () => {
+    document.documentElement.dataset.idle = 'false';
+    window.clearTimeout(idleTimer);
+    idleTimer = window.setTimeout(() => { if (!document.hidden) document.documentElement.dataset.idle = 'true'; }, 8000);
+  };
+  ['pointerdown','touchstart','keydown','scroll'].forEach((name) => window.addEventListener(name, markActive, { passive:true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) markActive(); });
+  markActive();
+}
+
 async function bootstrap() {
   document.body.classList.add('is-authenticating');
   setupEvents();
@@ -2960,6 +3043,7 @@ async function bootstrap() {
   setupReturnToTopOnResume();
   applyMotionPreference();
   setupPremiumUX();
+  setupIdleMicroMotion();
   render();
   setupPersistentMotion();
   updateConnection();

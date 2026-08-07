@@ -2151,3 +2151,87 @@ html[data-theme="dark"] .natural-add { background:linear-gradient(145deg, rgba(2
 html[data-theme="dark"] .natural-add-input-row input { background:rgba(8,18,15,.66); border-color:rgba(237,226,201,.11); }
 html[data-theme="dark"] .natural-add-heading strong { color:var(--ink); }
 @media (max-width:430px) { .natural-add { padding:14px; border-radius:21px; } .natural-add-heading small { font-size:.60rem; } }
+
+
+/* v4.4 — AGENDA vivant+ : micro-animations contextuelles, utiles et calmes */
+.event-card.is-near,
+.event-card.is-imminent,
+.event-card.is-active-now { isolation:isolate; }
+.event-card.is-near::after,
+.event-card.is-imminent::after,
+.event-card.is-active-now::after {
+  content:""; position:absolute; inset:-45% -22%; pointer-events:none; z-index:-1;
+  background:radial-gradient(circle at 78% 48%, rgba(199,154,92,.13), transparent 34%);
+  opacity:.52;
+}
+.event-card.is-imminent { border-color:color-mix(in srgb,var(--event-color) 42%,rgba(199,154,92,.4)); }
+.event-card.is-active-now { border-color:rgba(63,139,105,.22); box-shadow:0 14px 38px rgba(63,139,105,.075),inset 0 1px 0 rgba(255,255,255,.55); }
+.event-urgency-dot { width:6px; height:6px; border-radius:999px; flex:0 0 auto; background:var(--gold); box-shadow:0 0 0 4px rgba(199,154,92,.09),0 0 10px rgba(199,154,92,.36); }
+html[data-animation-mode="live"] .event-card.is-near { animation:v44NearCard 5.8s ease-in-out infinite; }
+html[data-animation-mode="live"] .event-card.is-imminent { animation:v44ImminentCard 3.1s ease-in-out infinite; }
+html[data-animation-mode="live"] .event-card.is-imminent .event-urgency-dot { animation:v44UrgencyDot 1.8s ease-in-out infinite; }
+html[data-animation-mode="live"] .event-card.is-imminent .responsible-pill { animation:v44ResponsibleReady 3.4s ease-in-out infinite; }
+html[data-animation-mode="live"] .event-card.is-active-now { animation:v44ActiveCard 5.2s ease-in-out infinite; }
+
+.event-card.is-newly-created { transform-origin:50% 12%; }
+html[data-animation-mode="live"] .event-card.is-newly-created { animation:v44MagneticSettle .82s var(--spring) both !important; }
+
+.birthday-card { position:relative; overflow:hidden; }
+.birthday-sparkles { position:absolute; inset:0; pointer-events:none; }
+.birthday-sparkles i { position:absolute; width:4px; height:4px; border-radius:50%; background:#D7A34A; box-shadow:0 0 9px rgba(215,163,74,.58); opacity:0; }
+.birthday-sparkles i:nth-child(1) { right:16%; top:22%; }
+.birthday-sparkles i:nth-child(2) { right:8%; top:52%; width:3px; height:3px; }
+.birthday-sparkles i:nth-child(3) { left:31%; bottom:17%; width:3px; height:3px; }
+html[data-animation-mode="live"] .birthday-sparkles i:nth-child(1) { animation:v44BirthdaySpark 4.8s 0s ease-in-out infinite; }
+html[data-animation-mode="live"] .birthday-sparkles i:nth-child(2) { animation:v44BirthdaySpark 4.8s 1.6s ease-in-out infinite; }
+html[data-animation-mode="live"] .birthday-sparkles i:nth-child(3) { animation:v44BirthdaySpark 4.8s 3.1s ease-in-out infinite; }
+
+.natural-recognition { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; min-height:24px; }
+.natural-recognition[hidden] { display:none; }
+.natural-recognition-chip { display:inline-flex; align-items:center; gap:5px; min-height:25px; padding:5px 8px; border-radius:999px; border:1px solid rgba(199,154,92,.18); background:rgba(199,154,92,.08); color:var(--petrol); font-size:.58rem; font-weight:760; opacity:0; transform:translateY(5px) scale(.96); }
+.natural-recognition-chip svg { width:11px; height:11px; color:var(--gold); }
+html[data-animation-mode="live"] .natural-add.is-understanding .natural-add-spark { animation:v44NaturalSpark 1.05s ease-in-out infinite; }
+html[data-animation-mode="live"] .natural-add.is-understanding::after { animation:v44NaturalSweep 1.25s ease-in-out infinite; }
+html[data-animation-mode="live"] .natural-recognition-chip { animation:v44RecognitionIn .42s calc(var(--recognition-index) * 90ms) var(--spring) forwards; }
+html[data-theme="dark"] .natural-recognition-chip { background:rgba(199,154,92,.075); color:var(--cream); border-color:rgba(199,154,92,.16); }
+
+.nav-item.nav-arrive::before { transform-origin:center; }
+html[data-animation-mode="live"] .nav-item.nav-arrive::before { animation:v44NavArrival .58s var(--spring) both !important; }
+
+/* Le bouton + respire davantage uniquement après quelques secondes sans interaction */
+html[data-animation-mode="live"][data-idle="true"] .nav-add span::after { animation-duration:2.8s !important; opacity:.8; }
+
+/* La météo reste une information, pas un dessin animé : seul le pictogramme vit légèrement */
+html[data-animation-mode="live"][data-weather="sun"] #contextWeatherIcon { animation:v44WeatherSun 6s ease-in-out infinite; }
+html[data-animation-mode="live"][data-weather="rain"] #contextWeatherIcon { animation:v44WeatherRain 4.5s ease-in-out infinite; }
+html[data-animation-mode="live"][data-weather="cloud"] #contextWeatherIcon { animation:v44WeatherCloud 7s ease-in-out infinite; }
+html[data-animation-mode="live"][data-weather="snow"] #contextWeatherIcon { animation:v44WeatherSnow 6.5s ease-in-out infinite; }
+
+/* À minuit, la date fait un passage doux au nouveau jour */
+html.day-transition .date-orbit,
+html.day-transition .day-pill.is-today { animation:v44DayTransition .95s var(--spring) both !important; }
+
+@keyframes v44NearCard { 0%,100%{box-shadow:0 12px 34px rgba(34,74,84,.055),0 0 0 rgba(199,154,92,0)} 50%{box-shadow:0 14px 38px rgba(34,74,84,.065),0 0 24px rgba(199,154,92,.055)} }
+@keyframes v44ImminentCard { 0%,100%{box-shadow:0 13px 36px rgba(34,74,84,.06),0 0 0 0 rgba(199,154,92,.06)} 50%{box-shadow:0 15px 40px rgba(34,74,84,.075),0 0 0 5px rgba(199,154,92,.025),0 0 26px rgba(199,154,92,.09)} }
+@keyframes v44ActiveCard { 0%,100%{box-shadow:0 14px 38px rgba(63,139,105,.065)} 50%{box-shadow:0 17px 42px rgba(63,139,105,.105),0 0 22px rgba(63,139,105,.045)} }
+@keyframes v44UrgencyDot { 0%,100%{transform:scale(.92);box-shadow:0 0 0 4px rgba(199,154,92,.08),0 0 9px rgba(199,154,92,.28)} 50%{transform:scale(1.12);box-shadow:0 0 0 7px rgba(199,154,92,.025),0 0 15px rgba(199,154,92,.5)} }
+@keyframes v44ResponsibleReady { 0%,100%{transform:translateY(0);filter:none} 50%{transform:translateY(-1px);filter:drop-shadow(0 4px 9px rgba(199,154,92,.16))} }
+@keyframes v44MagneticSettle { 0%{opacity:.25;transform:translateY(-13px) scale(.965);filter:blur(1.5px)} 58%{opacity:1;transform:translateY(2px) scale(1.008);filter:none} 100%{opacity:1;transform:none;filter:none} }
+@keyframes v44BirthdaySpark { 0%,72%,100%{opacity:0;transform:scale(.4) rotate(0)} 80%{opacity:1;transform:scale(1.45) rotate(35deg)} 89%{opacity:.5;transform:scale(.75) rotate(70deg)} }
+@keyframes v44NaturalSpark { 0%,100%{transform:rotate(-3deg) scale(.96);box-shadow:0 0 0 rgba(199,154,92,0)} 50%{transform:rotate(4deg) scale(1.07);box-shadow:0 0 18px rgba(199,154,92,.14)} }
+@keyframes v44NaturalSweep { 0%{transform:translate3d(110px,-8px,0);opacity:.22} 50%{opacity:.65} 100%{transform:translate3d(-250px,150px,0);opacity:.12} }
+@keyframes v44RecognitionIn { to{opacity:1;transform:none} }
+@keyframes v44NavArrival { 0%{transform:scaleX(.45);opacity:.2} 68%{transform:scaleX(1.16);opacity:1} 100%{transform:scaleX(1);opacity:1} }
+@keyframes v44WeatherSun { 0%,100%{transform:rotate(-2deg) scale(1);filter:drop-shadow(0 0 0 rgba(199,154,92,0))} 50%{transform:rotate(3deg) scale(1.08);filter:drop-shadow(0 2px 6px rgba(199,154,92,.2))} }
+@keyframes v44WeatherRain { 0%,100%{transform:translateY(0)} 50%{transform:translateY(1.5px)} }
+@keyframes v44WeatherCloud { 0%,100%{transform:translateX(-1px)} 50%{transform:translateX(1.5px)} }
+@keyframes v44WeatherSnow { 0%,100%{transform:rotate(-2deg) translateY(0)} 50%{transform:rotate(3deg) translateY(1px)} }
+@keyframes v44DayTransition { 0%{opacity:.55;transform:rotate(-10deg) scale(.94)} 62%{opacity:1;transform:rotate(3deg) scale(1.025)} 100%{opacity:1;transform:none} }
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-animation-mode="live"]) .event-card.is-near,
+  html:not([data-animation-mode="live"]) .event-card.is-imminent,
+  html:not([data-animation-mode="live"]) .event-card.is-active-now,
+  html:not([data-animation-mode="live"]) .birthday-sparkles i,
+  html:not([data-animation-mode="live"]) #contextWeatherIcon { animation:none !important; }
+}
