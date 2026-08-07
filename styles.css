@@ -1649,3 +1649,81 @@ html.theme-transitioning *, html.theme-transitioning *::before, html.theme-trans
 @keyframes premiumAddHalo { 0%,100% { transform:scale(.94); opacity:.25; } 50% { transform:scale(1.06); opacity:.65; } }
 @keyframes premiumRipple { to { transform:scale(22); opacity:0; } }
 @keyframes premiumSheetIn { from { opacity:0; transform:translate3d(0,34px,0) scale(.985); } to { opacity:1; transform:none; } }
+
+
+/* v4.0.1 — Animations vivantes : détails premium persistants et robustesse iOS */
+.appearance-subgroup { margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
+.appearance-subgroup-copy { display:flex; align-items:end; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.appearance-subgroup-copy strong { color:var(--forest); font-size:.76rem; }
+.appearance-subgroup-copy small, .motion-setting-note { color:var(--muted); font-size:.61rem; line-height:1.35; }
+.motion-setting-note { margin:9px 2px 0; }
+.motion-picker { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; padding:5px; border-radius:18px; background:rgba(34,74,84,.055); }
+.motion-picker button { min-width:0; min-height:39px; border:0; border-radius:14px; background:transparent; color:var(--muted); font:inherit; font-size:.66rem; font-weight:780; cursor:pointer; transition:transform .25s var(--spring), background .25s ease, color .25s ease, box-shadow .25s ease; }
+.motion-picker button.is-active { color:var(--petrol); background:rgba(255,255,255,.9); box-shadow:0 7px 19px rgba(34,74,84,.09), inset 0 1px 0 rgba(255,255,255,.8); }
+html[data-theme="dark"] .motion-picker { background:rgba(237,226,201,.055); }
+html[data-theme="dark"] .motion-picker button.is-active { color:var(--cream); background:rgba(237,226,201,.09); box-shadow:0 7px 19px rgba(0,0,0,.16); }
+
+/* Les trois orbites critiques sont également pilotées par Web Animations API pour éviter les arrêts de compositing iOS */
+.date-orbit-ring, .pulse-orbit, .orbit-core {
+  will-change:transform;
+  transform:translateZ(0);
+  -webkit-transform:translateZ(0);
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+  animation-play-state:running !important;
+}
+.date-orbit-ring { animation-name:agendaDateOrbitSpin !important; animation-duration:8s !important; animation-timing-function:linear !important; animation-iteration-count:infinite !important; }
+.pulse-orbit { animation-name:agendaFamilyOrbitSpin !important; animation-duration:20s !important; animation-timing-function:linear !important; animation-iteration-count:infinite !important; }
+.orbit-core { animation-name:agendaFamilyOrbitSpinReverse !important; animation-duration:20s !important; animation-timing-function:linear !important; animation-iteration-count:infinite !important; }
+.date-orbit-ring::after { content:""; position:absolute; width:5px; height:5px; top:-2px; left:50%; border-radius:50%; background:var(--gold); box-shadow:0 0 0 4px rgba(199,154,92,.11),0 0 12px rgba(199,154,92,.55); transform:translateX(-50%); }
+.pulse-orbit::after { content:""; position:absolute; width:7px; height:7px; top:-4px; left:50%; border-radius:50%; background:#E7D5A7; box-shadow:0 0 14px rgba(231,213,167,.58); transform:translateX(-50%); }
+
+/* Petits détails permanents en mode Vivantes */
+html[data-animation-mode="live"] #heroNextMoment { position:relative; overflow:hidden; animation:agendaNextMomentBreath 5.8s ease-in-out infinite; }
+html[data-animation-mode="live"] #heroNextMoment::after { content:""; position:absolute; inset:-30% auto -30% -45%; width:38%; transform:skewX(-18deg); background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent); animation:agendaChipSheen 9s ease-in-out infinite; pointer-events:none; }
+html[data-animation-mode="live"] .responsible-pill { position:relative; animation:agendaResponsibleGlow 6.4s ease-in-out infinite; }
+html[data-animation-mode="live"] .family-cover-media.has-photo img { animation:agendaFamilyPhotoDrift 24s ease-in-out infinite alternate; transform-origin:center; will-change:transform; }
+html[data-animation-mode="live"] .family-cover-placeholder span { animation:agendaFamilySymbolFloat 7s ease-in-out infinite; }
+html[data-animation-mode="live"] .date-orbit { animation:agendaOrbitHalo 6s ease-in-out infinite; }
+html[data-animation-mode="live"] .nav-item.is-active::before { animation:agendaActiveNavGlow 4.6s ease-in-out infinite; }
+html[data-animation-mode="live"] .family-pulse-card { position:relative; }
+html[data-animation-mode="live"] .family-pulse-card::after { content:""; position:absolute; inset:-80% -35%; pointer-events:none; background:linear-gradient(108deg,transparent 44%,rgba(246,238,216,.055) 50%,transparent 56%); transform:translateX(-45%) rotate(3deg); animation:agendaFamilyCardSheen 13s ease-in-out infinite; }
+html[data-animation-mode="live"] .task-card.is-done .task-check { animation:agendaDoneGlow .68s var(--spring) both; }
+
+/* Mode discret : orbites présentes, mais supprime les reflets et halos continus */
+html[data-animation-mode="subtle"] .hero-card::after,
+html[data-animation-mode="subtle"] .pulse-meter span::after,
+html[data-animation-mode="subtle"] .nav-add span::after,
+html[data-animation-mode="subtle"] #heroNextMoment::after,
+html[data-animation-mode="subtle"] .family-pulse-card::after { animation:none !important; display:none !important; }
+html[data-animation-mode="subtle"] .ambient-one,
+html[data-animation-mode="subtle"] .ambient-two { animation-duration:28s !important; opacity:.55; }
+
+/* Le choix Vivantes est explicite : il garde les animations premium même si iOS expose reduce-motion */
+@media (prefers-reduced-motion: reduce) {
+  html[data-animation-mode="live"] .date-orbit-ring { animation:agendaDateOrbitSpin 8s linear infinite !important; }
+  html[data-animation-mode="live"] .pulse-orbit { animation:agendaFamilyOrbitSpin 20s linear infinite !important; }
+  html[data-animation-mode="live"] .orbit-core { animation:agendaFamilyOrbitSpinReverse 20s linear infinite !important; }
+  html[data-animation-mode="live"] #heroNextMoment { animation:agendaNextMomentBreath 5.8s ease-in-out infinite !important; }
+  html[data-animation-mode="live"] .family-cover-media.has-photo img { animation:agendaFamilyPhotoDrift 24s ease-in-out infinite alternate !important; }
+  html[data-animation-mode="live"] .date-orbit { animation:agendaOrbitHalo 6s ease-in-out infinite !important; }
+  html[data-animation-mode="live"] .nav-add span::after { animation:premiumAddHalo 3.6s ease-in-out infinite !important; display:block !important; }
+}
+
+@keyframes agendaDateOrbitSpin { to { transform:rotate(360deg) translateZ(0); } }
+@keyframes agendaFamilyOrbitSpin { to { transform:rotate(360deg) translateZ(0); } }
+@keyframes agendaFamilyOrbitSpinReverse { to { transform:rotate(-360deg) translateZ(0); } }
+@keyframes agendaNextMomentBreath { 0%,100% { box-shadow:inset 0 0 0 1px rgba(246,238,216,.04),0 0 0 rgba(199,154,92,0); } 50% { box-shadow:inset 0 0 0 1px rgba(246,238,216,.11),0 0 22px rgba(199,154,92,.11); } }
+@keyframes agendaChipSheen { 0%,64% { transform:translateX(-160%) skewX(-18deg); opacity:0; } 72% { opacity:.8; } 86%,100% { transform:translateX(480%) skewX(-18deg); opacity:0; } }
+@keyframes agendaResponsibleGlow { 0%,100% { filter:drop-shadow(0 0 0 rgba(34,74,84,0)); } 50% { filter:drop-shadow(0 4px 8px rgba(34,74,84,.12)); } }
+@keyframes agendaFamilyPhotoDrift { 0% { transform:scale(1.015) translate3d(-.3%,0,0); } 50% { transform:scale(1.045) translate3d(.4%,-.45%,0); } 100% { transform:scale(1.025) translate3d(.2%,.35%,0); } }
+@keyframes agendaFamilySymbolFloat { 0%,100% { transform:translateY(0) rotate(-1deg); } 50% { transform:translateY(-5px) rotate(1.5deg); } }
+@keyframes agendaOrbitHalo { 0%,100% { box-shadow:var(--shadow-sm),0 0 0 0 rgba(199,154,92,0); } 50% { box-shadow:var(--shadow-sm),0 0 0 7px rgba(199,154,92,.055); } }
+@keyframes agendaActiveNavGlow { 0%,100% { opacity:.82; box-shadow:0 0 0 rgba(34,74,84,0); } 50% { opacity:1; box-shadow:0 0 16px rgba(34,74,84,.07); } }
+@keyframes agendaFamilyCardSheen { 0%,70% { transform:translateX(-50%) rotate(3deg); opacity:0; } 78% { opacity:1; } 94%,100% { transform:translateX(55%) rotate(3deg); opacity:0; } }
+@keyframes agendaDoneGlow { 0% { transform:scale(.76); box-shadow:0 0 0 0 rgba(63,139,105,.25); } 65% { transform:scale(1.12); box-shadow:0 0 0 8px rgba(63,139,105,0); } 100% { transform:scale(1); } }
+
+@media (max-width:390px) {
+  .motion-picker button { font-size:.6rem; padding-inline:4px; }
+  .appearance-subgroup-copy { align-items:start; flex-direction:column; gap:2px; }
+}

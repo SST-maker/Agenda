@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=4.0.0">
+  <link rel="stylesheet" href="styles.css?v=4.0.1">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -722,6 +722,15 @@
           <button class="tap" type="button" data-theme-choice="light">Clair</button>
           <button class="tap" type="button" data-theme-choice="dark">Sombre</button>
         </div>
+        <div class="appearance-subgroup">
+          <div class="appearance-subgroup-copy"><strong>Animations</strong><small>Réglage propre à cet appareil</small></div>
+          <div class="motion-picker" id="motionPicker" role="group" aria-label="Choisir le niveau d’animations">
+            <button class="tap" type="button" data-motion-choice="system">Système</button>
+            <button class="tap" type="button" data-motion-choice="subtle">Discrètes</button>
+            <button class="tap" type="button" data-motion-choice="live">Vivantes</button>
+          </div>
+          <p class="motion-setting-note" id="motionSettingNote">Vivantes garde les détails premium actifs en continu</p>
+        </div>
       </section>
 
       <section class="settings-group">
@@ -782,6 +791,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=4.0.0"></script>
+  <script type="module" src="js/app.js?v=4.0.1"></script>
 </body>
 </html>

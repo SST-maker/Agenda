@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.0.0';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.0.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.0.1';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.0.1';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -197,11 +197,35 @@ function resolvedTheme(choice = 'system') {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+const MOTION_MODE_KEY = 'agenda-motion-mode-v4';
+function getMotionMode() {
+  const saved = localStorage.getItem(MOTION_MODE_KEY);
+  return ['system','subtle','live'].includes(saved) ? saved : 'live';
+}
+function motionIsReduced() {
+  const mode = getMotionMode();
+  return mode === 'system' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+}
+function applyMotionPreference() {
+  const mode = getMotionMode();
+  document.documentElement.dataset.animationMode = mode;
+  document.documentElement.dataset.motionReduced = motionIsReduced() ? 'true' : 'false';
+  $$('[data-motion-choice]').forEach((button) => button.classList.toggle('is-active', button.dataset.motionChoice === mode));
+  const note = $('#motionSettingNote');
+  if (note) note.textContent = mode === 'live' ? 'Vivantes garde les détails premium actifs en continu' : mode === 'subtle' ? 'Discrètes conserve les mouvements essentiels sans effets lumineux continus' : 'Système suit le réglage Mouvement de cet appareil';
+  window.dispatchEvent(new CustomEvent('agenda-motion-change', { detail: { mode } }));
+}
+function setMotionMode(mode) {
+  const next = ['system','subtle','live'].includes(mode) ? mode : 'live';
+  localStorage.setItem(MOTION_MODE_KEY, next);
+  applyMotionPreference();
+}
+
 function applyUserPreferences(data = store.getState()) {
   const choice = data.settings?.theme || 'system';
   const theme = resolvedTheme(choice);
   const themeChanged = document.documentElement.dataset.theme && document.documentElement.dataset.theme !== theme;
-  if (themeChanged && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+  if (themeChanged && !motionIsReduced()) {
     document.documentElement.classList.add('theme-transitioning');
     window.setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 380);
   }
@@ -220,6 +244,7 @@ function renderSettingsDialog() {
   const user = store.getCurrentUser();
   const choice = data.settings?.theme || 'system';
   $$('[data-theme-choice]').forEach((button) => button.classList.toggle('is-active', button.dataset.themeChoice === choice));
+  applyMotionPreference();
   $$('[data-home-widget-toggle]').forEach((input) => { input.checked = data.settings?.homeWidgets?.[input.dataset.homeWidgetToggle] !== false; });
 
   const checks = [
@@ -734,7 +759,7 @@ function switchView(view) {
   state.activeView = view;
   $$('.view').forEach((section) => section.classList.toggle('is-active', section.dataset.viewSection === view));
   $$('.nav-item').forEach((button) => button.classList.toggle('is-active', button.dataset.view === view));
-  window.scrollTo({ top: 0, behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  window.scrollTo({ top: 0, behavior: motionIsReduced() ? 'auto' : 'smooth' });
   requestAnimationFrame(() => replayActiveViewPremiumEntrance(view));
   vibration();
 }
@@ -1358,7 +1383,7 @@ function setupMobileViewportStability() {
 
 
 function premiumAnimateNode(node, delay = 0) {
-  if (!(node instanceof Element) || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  if (!(node instanceof Element) || motionIsReduced()) return;
   if (node.classList.contains('premium-enter')) return;
   node.style.setProperty('--premium-delay', `${Math.min(delay, 180)}ms`);
   node.classList.add('premium-enter');
@@ -1375,14 +1400,14 @@ function premiumAnimateContainer(container) {
 
 function replayActiveViewPremiumEntrance(view = state.activeView) {
   const section = document.querySelector(`[data-view-section="${view}"]`);
-  if (!section || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  if (!section || motionIsReduced()) return;
   const nodes = [...section.querySelectorAll('.hero-card, .quick-action-card, .family-tool-card, .family-feed-card, .tasks-home-card, .event-card, .task-card, .family-card, .memory-card, .month-shell, .month-selection')].slice(0, 18);
   nodes.forEach((node) => node.classList.remove('premium-enter'));
   requestAnimationFrame(() => nodes.forEach((node, index) => premiumAnimateNode(node, index * 24)));
 }
 
 function setupPremiumUX() {
-  const reducedMotion = () => Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  const reducedMotion = () => Boolean(motionIsReduced());
   let scrollFrame = 0;
   const syncScrollState = () => {
     scrollFrame = 0;
@@ -1433,6 +1458,75 @@ function setupPremiumUX() {
   });
   contentObserver.observe(document.body, { childList:true, subtree:true });
   premiumAnimateContainer(document.querySelector('.view.is-active'));
+}
+
+function setupPersistentMotion() {
+  let criticalAnimations = [];
+  let watchdogTimer = 0;
+  let lastProbe = new Map();
+
+  const cancelCritical = () => {
+    criticalAnimations.forEach((item) => { try { item.animation.cancel(); } catch {} });
+    criticalAnimations = [];
+    lastProbe.clear();
+  };
+
+  const makeSpin = (element, duration, reverse = false) => {
+    if (!element || motionIsReduced()) return;
+    const direction = reverse ? -360 : 360;
+    try {
+      const animation = element.animate([
+        { transform: 'rotate(0deg) translateZ(0)' },
+        { transform: `rotate(${direction}deg) translateZ(0)` }
+      ], { duration, iterations: Infinity, easing: 'linear' });
+      animation.id = `agenda-persistent-${duration}-${reverse ? 'reverse' : 'forward'}`;
+      criticalAnimations.push({ element, animation, duration, reverse });
+    } catch {
+      element.classList.add('persistent-motion-css');
+    }
+  };
+
+  const rebuildCritical = () => {
+    cancelCritical();
+    if (motionIsReduced() || document.hidden) return;
+    const mode = getMotionMode();
+    const multiplier = mode === 'subtle' ? 1.45 : 1;
+    makeSpin(document.querySelector('.date-orbit-ring'), 8000 * multiplier, false);
+    makeSpin(document.querySelector('.pulse-orbit'), 20000 * multiplier, false);
+    makeSpin(document.querySelector('.orbit-core'), 20000 * multiplier, true);
+  };
+
+  const watchdog = () => {
+    if (document.hidden || motionIsReduced()) return;
+    let needsRestart = false;
+    for (const item of criticalAnimations) {
+      const current = Number(item.animation.currentTime || 0);
+      const previous = lastProbe.get(item.element);
+      if (item.animation.playState !== 'running' || (previous != null && current <= previous + 40)) needsRestart = true;
+      lastProbe.set(item.element, current);
+    }
+    if (needsRestart || criticalAnimations.some((item) => !item.element.isConnected)) rebuildCritical();
+  };
+
+  const observer = new MutationObserver((records) => {
+    const touchedOrbit = records.some((record) => [...record.addedNodes, ...record.removedNodes].some((node) => node instanceof Element && (node.matches?.('.pulse-orbit,.orbit-core,.date-orbit-ring') || node.querySelector?.('.pulse-orbit,.orbit-core,.date-orbit-ring'))));
+    if (touchedOrbit) requestAnimationFrame(rebuildCritical);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  const resume = () => { if (!document.hidden) requestAnimationFrame(rebuildCritical); };
+  document.addEventListener('visibilitychange', resume);
+  window.addEventListener('pageshow', resume);
+  window.addEventListener('focus', resume);
+  window.addEventListener('agenda-motion-change', rebuildCritical);
+  watchdogTimer = window.setInterval(watchdog, 3500);
+  rebuildCritical();
+
+  return () => {
+    observer.disconnect();
+    cancelCritical();
+    window.clearInterval(watchdogTimer);
+  };
 }
 
 function showToast(message) {
@@ -2053,6 +2147,7 @@ function setupEvents() {
   $('#restoreBackupInput').addEventListener('change', handleBackupRestore);
   $('#forceSyncButton').addEventListener('click', forceSyncNow);
   $$('[data-theme-choice]').forEach((button) => button.addEventListener('click', () => { store.setSetting('theme', button.dataset.themeChoice); applyUserPreferences(store.getState()); renderSettingsDialog(); vibration(); }));
+  $$('[data-motion-choice]').forEach((button) => button.addEventListener('click', () => { setMotionMode(button.dataset.motionChoice); renderSettingsDialog(); vibration(); showToast(`Animations ${button.textContent.toLowerCase()}`); }));
   $$('[data-home-widget-toggle]').forEach((input) => input.addEventListener('change', () => { store.setSetting('homeWidgets', { [input.dataset.homeWidgetToggle]: input.checked }); applyUserPreferences(store.getState()); renderSettingsDialog(); }));
   $('#logoutButton').addEventListener('click', async () => { closeAccountDialog(); await store.logout(); applyAuthUI(); });
   $('#resetButton').addEventListener('click', () => {
@@ -2137,6 +2232,7 @@ function setupEvents() {
   window.addEventListener('online', updateConnection);
   window.addEventListener('offline', updateConnection);
   window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if ((store.getState().settings?.theme || 'system') === 'system') applyUserPreferences(store.getState()); });
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change', () => { if (getMotionMode() === 'system') applyMotionPreference(); });
   store.addEventListener('change', (event) => {
     const reason = event.detail?.reason;
     if (reason === 'auth-status') applyAuthUI(event.detail);
@@ -2189,8 +2285,10 @@ async function bootstrap() {
   setupEvents();
   setupPWA();
   setupMobileViewportStability();
+  applyMotionPreference();
   setupPremiumUX();
   render();
+  setupPersistentMotion();
   updateConnection();
   const auth = await store.init();
   applyAuthUI();
