@@ -1,8 +1,8 @@
 {
   "name": "agenda-familial-supabase-github",
-  "version": "4.1.1",
+  "version": "4.2.0",
   "private": true,
-  "description": "PWA premium privée d’agenda familial partagé — v4.1.1 Ambiance dynamique & micro-détails.",
+  "description": "PWA premium privée d’agenda familial partagé — v4.2.0 Intelligence du quotidien & ambiance contextuelle.",
   "type": "commonjs",
   "scripts": {
     "check": "node scripts/check-project.js",

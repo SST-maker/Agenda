@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.1.1';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.1.1';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.2.0';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.2.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -170,10 +170,68 @@ function getGreeting() {
   return 'Bonsoir';
 }
 
-const APP_VERSION = '4.1.1';
+const APP_VERSION = '4.2.0';
 const VERSION_SEEN_KEY = 'agenda-version-seen';
 let temporalTimer = 0;
 let previousOnlineState = navigator.onLine;
+const SMART_CONTEXT_KEY = 'agenda-smart-context-v42';
+const WEATHER_ENABLED_KEY = 'agenda-weather-enabled-v42';
+const WEATHER_CACHE_KEY = 'agenda-weather-cache-v42';
+let weatherRefreshTimer = 0;
+
+function smartContextEnabled() { return localStorage.getItem(SMART_CONTEXT_KEY) !== 'off'; }
+function weatherEnabled() { return localStorage.getItem(WEATHER_ENABLED_KEY) === 'on'; }
+function setSmartContextEnabled(enabled) { localStorage.setItem(SMART_CONTEXT_KEY, enabled ? 'on' : 'off'); render(); }
+function setWeatherEnabled(enabled) { localStorage.setItem(WEATHER_ENABLED_KEY, enabled ? 'on' : 'off'); }
+
+function seasonFor(date = new Date()) {
+  const month = date.getMonth() + 1;
+  if ([12,1,2].includes(month)) return 'winter';
+  if ([3,4,5].includes(month)) return 'spring';
+  if ([6,7,8].includes(month)) return 'summer';
+  return 'autumn';
+}
+function seasonLabel(season) { return ({ winter:'Hiver', spring:'Printemps', summer:'Été', autumn:'Automne' })[season] || ''; }
+function isWeekendMoment(date = new Date()) { return date.getDay() === 0 || date.getDay() === 6 || (date.getDay() === 5 && date.getHours() >= 17); }
+
+function weatherDescriptor(code) {
+  const value = Number(code);
+  if (value === 0) return { icon:'☀️', label:'Ciel clair', kind:'sun' };
+  if ([1,2].includes(value)) return { icon:'🌤️', label:'Éclaircies', kind:'sun' };
+  if (value === 3) return { icon:'☁️', label:'Couvert', kind:'cloud' };
+  if ([45,48].includes(value)) return { icon:'🌫️', label:'Brume', kind:'cloud' };
+  if ((value >= 51 && value <= 67) || (value >= 80 && value <= 82)) return { icon:'🌧️', label:'Pluie', kind:'rain' };
+  if ((value >= 71 && value <= 77) || (value >= 85 && value <= 86)) return { icon:'❄️', label:'Neige', kind:'snow' };
+  if (value >= 95) return { icon:'⛈️', label:'Orage', kind:'storm' };
+  return { icon:'🌤️', label:'Météo', kind:'neutral' };
+}
+function cachedWeather() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(WEATHER_CACHE_KEY) || 'null');
+    if (!parsed || !Number.isFinite(parsed.temperature) || !Number.isFinite(parsed.code)) return null;
+    return parsed;
+  } catch { return null; }
+}
+async function refreshWeather({ requestPermission = false } = {}) {
+  if (!weatherEnabled() || !navigator.geolocation || !navigator.onLine) return null;
+  const cached = cachedWeather();
+  if (!requestPermission && cached && Date.now() - Number(cached.at || 0) < 30 * 60 * 1000) return cached;
+  const position = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy:false, timeout:9000, maximumAge:30*60*1000 }));
+  const { latitude, longitude } = position.coords;
+  const url = new URL('https://api.open-meteo.com/v1/forecast');
+  url.searchParams.set('latitude', String(latitude));
+  url.searchParams.set('longitude', String(longitude));
+  url.searchParams.set('current', 'temperature_2m,weather_code,is_day');
+  url.searchParams.set('timezone', 'auto');
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Météo indisponible');
+  const payload = await response.json();
+  const weather = { temperature:Number(payload.current?.temperature_2m), code:Number(payload.current?.weather_code), isDay:Number(payload.current?.is_day), at:Date.now() };
+  if (!Number.isFinite(weather.temperature) || !Number.isFinite(weather.code)) throw new Error('Météo indisponible');
+  localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify(weather));
+  renderContextualHome(store.getState());
+  return weather;
+}
 
 function eventTiming(event) {
   const start = new Date(`${event.date}T${event.allDay ? '00:00' : event.time}:00`);
@@ -227,6 +285,8 @@ function applyDynamicAmbience(date = new Date()) {
   const root = document.documentElement;
   const ambient = ambientStateFor(date);
   root.dataset.dayPhase = currentDayPhase(date);
+  root.dataset.season = seasonFor(date);
+  root.dataset.weekend = isWeekendMoment(date) ? 'true' : 'false';
   root.style.setProperty('--ambient-warm-rgb', ambient.warm.join(','));
   root.style.setProperty('--ambient-cool-rgb', ambient.cool.join(','));
   root.style.setProperty('--ambient-wash-rgb', ambient.wash.join(','));
@@ -341,6 +401,8 @@ function setupTemporalUI() {
     if (marker) marker.textContent = new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
     const group = groupForTime(new Date().toTimeString().slice(0,5));
     if (state.activeView === 'home' && state.selectedDate === toISO(new Date()) && group !== lastGroup) renderTimeline(store.getState());
+    renderContextualHome(store.getState());
+    if (state.activeView === 'daily') renderDailyHub(store.getState());
     lastGroup = group;
   };
   window.clearInterval(temporalTimer);
@@ -350,10 +412,121 @@ function setupTemporalUI() {
   tick();
 }
 
+function minutesUntilEvent(event, now = new Date()) {
+  if (!event || event.allDay) return Infinity;
+  return Math.ceil((new Date(`${event.date}T${event.time}:00`) - now) / 60000);
+}
+
+
+function nextBirthdayWithin(data, days = 7) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  for (let offset = 0; offset <= days; offset += 1) {
+    const date = addDays(today, offset);
+    const members = birthdayMembersForDate(data, toISO(date));
+    if (members.length) return { offset, date, members };
+  }
+  return null;
+}
+
+function contextualTimeLabel(date = new Date()) {
+  const phase = currentDayPhase(date);
+  const season = seasonFor(date);
+  if (isWeekendMoment(date)) return `${phase === 'night' ? 'Soirée' : 'Mode week-end'} · ${seasonLabel(season)}`;
+  return ({ morning:'Matin doux', day:'Belle journée', evening:'Soirée tranquille', night:'Mode nuit' })[phase] + ` · ${seasonLabel(season)}`;
+}
+
+function renderContextualHome(data = store.getState()) {
+  const strip = $('#contextStrip');
+  if (!strip) return;
+  const enabled = smartContextEnabled();
+  strip.hidden = !enabled;
+  document.documentElement.dataset.smartContext = enabled ? 'true' : 'false';
+  if (!enabled) return;
+
+  const now = new Date();
+  applyDynamicAmbience(now);
+  const timeChip = $('#contextTimeChip span:last-child');
+  if (timeChip) timeChip.textContent = contextualTimeLabel(now);
+
+  const weekend = $('#contextWeekendChip');
+  const weekendActive = isWeekendMoment(now);
+  weekend.hidden = !weekendActive;
+  if (weekendActive) weekend.querySelector('span:last-child').textContent = now.getDay() === 5 ? 'Le week-end commence' : 'Mode week-end';
+
+  const birthday = nextBirthdayWithin(data, 7);
+  const birthdayChip = $('#contextBirthdayChip');
+  birthdayChip.hidden = !birthday;
+  if (birthday) {
+    const names = birthday.members.map(memberDisplayName).join(' & ');
+    birthdayChip.querySelector('span:last-child').textContent = birthday.offset === 0 ? `Aujourd’hui · ${names}` : birthday.offset === 1 ? `Demain · ${names}` : `Anniversaire dans ${birthday.offset} j · ${names}`;
+    if (birthday.offset === 0) document.body.dataset.celebration = 'birthday';
+    else delete document.body.dataset.celebration;
+  } else delete document.body.dataset.celebration;
+
+  const next = nextUpcomingEvent(data, now);
+  const nextChip = $('#contextNextChip');
+  const mins = next ? minutesUntilEvent(next, now) : Infinity;
+  nextChip.hidden = !(mins > 0 && mins <= 180);
+  if (!nextChip.hidden) {
+    nextChip.dataset.eventId = next.id;
+    nextChip.querySelector('span').textContent = mins <= 60 ? `${next.title} · ${relativeMomentLabel(mins)}` : `${next.title} · ${next.time}`;
+  } else nextChip.dataset.eventId = '';
+
+  const weatherChip = $('#contextWeatherChip');
+  const weather = weatherEnabled() ? cachedWeather() : null;
+  weatherChip.hidden = !weather;
+  if (weather) {
+    const meta = weatherDescriptor(weather.code);
+    $('#contextWeatherIcon').textContent = meta.icon;
+    $('#contextWeatherText').textContent = `${Math.round(weather.temperature)}° · ${meta.label}`;
+    document.documentElement.dataset.weather = meta.kind;
+  } else delete document.documentElement.dataset.weather;
+}
+
+function renderDailyHub(data = store.getState()) {
+  if (!$('#view-daily')) return;
+  const now = new Date();
+  const today = toISO(now);
+  const tomorrowDate = addDays(new Date(now.getFullYear(), now.getMonth(), now.getDate()), 1);
+  const tomorrow = toISO(tomorrowDate);
+
+  const pendingTasks = tasksForMember(data).filter((task) => task.status !== 'done' && task.dueDate <= today);
+  const routines = (data.routines || []).filter((routine) => routineIsScheduled(routine, now));
+  const routinesLeft = routines.filter((routine) => !routineIsCompleted(data, routine.id, today));
+  const shopping = shoppingOpenItems(data);
+  $('#dailyTasksCount').textContent = `${pendingTasks.length} à faire`;
+  $('#dailyTasksMeta').textContent = pendingTasks.some((task) => task.dueDate < today) ? 'Dont du retard' : 'Aujourd’hui';
+  $('#dailyRoutinesCount').textContent = `${routinesLeft.length} restante${routinesLeft.length > 1 ? 's' : ''}`;
+  $('#dailyRoutinesMeta').textContent = routines.length ? `${routines.length - routinesLeft.length}/${routines.length} terminées` : 'Aucune prévue';
+  $('#dailyShoppingCount').textContent = shopping.length ? `${shopping.length} article${shopping.length > 1 ? 's' : ''}` : 'Liste vide';
+  $('#dailyShoppingMeta').textContent = shopping.length ? 'À acheter' : 'Tout est bon';
+
+  const total = pendingTasks.length + routinesLeft.length + shopping.length;
+  $('#dailyStatusTitle').textContent = total === 0 ? 'Tout est fluide aujourd’hui ✨' : total <= 3 ? 'Une journée légère' : total <= 7 ? 'Quelques choses à garder en tête' : 'Une journée bien remplie';
+  $('#dailyStatusCopy').textContent = total === 0 ? 'Rien ne presse, profitez de ce temps' : `${pendingTasks.length} tâche${pendingTasks.length > 1 ? 's' : ''} · ${routinesLeft.length} routine${routinesLeft.length > 1 ? 's' : ''} · ${shopping.length} course${shopping.length > 1 ? 's' : ''}`;
+
+  const tomorrowEvents = eventsForDate(data, tomorrow, 'all').sort((a,b) => (a.allDay ? '00:00' : a.time).localeCompare(b.allDay ? '00:00' : b.time));
+  const first = tomorrowEvents[0];
+  $('#tomorrowFirstEvent').textContent = first ? first.title : 'Rien de prévu';
+  $('#tomorrowFirstEventMeta').textContent = first ? (first.allDay ? 'Toute la journée' : first.time) : '—';
+  const tomorrowTasks = (data.tasks || []).filter((task) => task.status !== 'done' && task.dueDate === tomorrow).length;
+  const tomorrowRoutines = (data.routines || []).filter((routine) => routineIsScheduled(routine, tomorrowDate)).length;
+  const load = tomorrowEvents.length + tomorrowTasks + tomorrowRoutines;
+  $('#tomorrowWorkload').textContent = load ? `${load} élément${load > 1 ? 's' : ''}` : 'Rien à signaler';
+  $('#tomorrowWorkloadMeta').textContent = [tomorrowEvents.length ? `${tomorrowEvents.length} RDV` : '', tomorrowTasks ? `${tomorrowTasks} tâche${tomorrowTasks>1?'s':''}` : '', tomorrowRoutines ? `${tomorrowRoutines} routine${tomorrowRoutines>1?'s':''}` : ''].filter(Boolean).join(' · ') || 'Profitez-en';
+  $('#tomorrowBadge').textContent = load === 0 ? 'Calme' : load <= 3 ? 'Léger' : load <= 6 ? 'Équilibré' : 'Chargé';
+}
+
+function openQuickAddDialog() {
+  $('#quickAddDialog')?.showModal();
+  vibration();
+}
+function closeQuickAddDialog() { if ($('#quickAddDialog')?.open) $('#quickAddDialog').close(); }
+
 function announceVersionIfNeeded() {
   const previous = localStorage.getItem(VERSION_SEEN_KEY);
   localStorage.setItem(VERSION_SEEN_KEY, APP_VERSION);
-  if (previous && previous !== APP_VERSION) window.setTimeout(() => showToast('AGENDA 4.1.1 est prête ✨'), 900);
+  if (previous && previous !== APP_VERSION) window.setTimeout(() => showToast('AGENDA 4.2 est prête ✨'), 900);
 }
 
 // Rendu central : chaque vue lit le même état local-first.
@@ -362,6 +535,8 @@ function render() {
   applyUserPreferences(data);
   renderHeader(data);
   renderLiveMoment(data);
+  renderContextualHome(data);
+  renderDailyHub(data);
   renderMemberFilter(data);
   renderFamilyFeed(data);
   renderHomeTools(data);
@@ -433,6 +608,9 @@ function renderSettingsDialog() {
   $$('[data-theme-choice]').forEach((button) => button.classList.toggle('is-active', button.dataset.themeChoice === choice));
   applyMotionPreference();
   $$('[data-home-widget-toggle]').forEach((input) => { input.checked = data.settings?.homeWidgets?.[input.dataset.homeWidgetToggle] !== false; });
+  if ($('#smartContextToggle')) $('#smartContextToggle').checked = smartContextEnabled();
+  if ($('#weatherToggle')) $('#weatherToggle').checked = weatherEnabled();
+  if ($('#weatherSettingCopy')) { const weather = cachedWeather(); $('#weatherSettingCopy').textContent = weatherEnabled() ? (weather ? `Active · dernière mise à jour ${new Date(weather.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}` : 'Active · autorisation de localisation nécessaire') : 'Optionnelle · position utilisée uniquement pour récupérer la météo'; }
 
   const checks = [
     { label: 'Identité famille', done: Boolean(data.family?.name && data.family?.symbol) },
@@ -954,7 +1132,7 @@ function renderDialogMembers(data) {
 }
 
 function switchView(view) {
-  if (!['home','agenda','family','focus'].includes(view)) return;
+  if (!['home','agenda','family','daily'].includes(view)) return;
   state.activeView = view;
   $$('.view').forEach((section) => section.classList.toggle('is-active', section.dataset.viewSection === view));
   $$('.nav-item').forEach((button) => button.classList.toggle('is-active', button.dataset.view === view));
@@ -2185,6 +2363,18 @@ function setupEvents() {
       if (viewButton.dataset.forceMode) renderAgenda(store.getState());
     }
 
+    if (event.target.closest('[data-open-quick-add]')) openQuickAddDialog();
+    if (event.target.closest('[data-close-quick-add]')) closeQuickAddDialog();
+    const quickTarget = event.target.closest('[data-quick-add-target]');
+    if (quickTarget) {
+      const target = quickTarget.dataset.quickAddTarget;
+      closeQuickAddDialog();
+      if (target === 'event') openEventDialog();
+      else if (target === 'task') openTaskDialog();
+      else if (target === 'shopping') openShoppingDialog();
+      else if (target === 'routine') openRoutineDialog();
+    }
+
     const memberButton = event.target.closest('[data-member]');
     if (memberButton) { state.activeMember = memberButton.dataset.member; render(); vibration(); }
 
@@ -2209,6 +2399,9 @@ function setupEvents() {
 
     const liveMomentButton = event.target.closest('#liveMomentButton');
     if (liveMomentButton?.dataset.liveEventId) openEventDialog(liveMomentButton.dataset.liveEventId);
+
+    const contextNextButton = event.target.closest('#contextNextChip');
+    if (contextNextButton?.dataset.eventId) openEventDialog(contextNextButton.dataset.eventId);
 
     const collaborationButton = event.target.closest('[data-collaborate-type]');
     if (collaborationButton) openCollaborationDialog(collaborationButton.dataset.collaborateType, collaborationButton.dataset.collaborateId);
@@ -2350,9 +2543,11 @@ function setupEvents() {
   $('#testNotificationButton').addEventListener('click', testNotification);
   $('#quickProfileButton').addEventListener('click', openAccountDialog);
   $('#addMemberButton').addEventListener('click', openAccountDialog);
-  $('#manageAccessButton').addEventListener('click', openAccountDialog);
-  $('#openSettingsButton').addEventListener('click', openSettingsDialog);
   $('#settingsButton').addEventListener('click', openSettingsDialog);
+  $('#dailyTasksButton')?.addEventListener('click', openTasksDialog);
+  $('#dailyRoutinesButton')?.addEventListener('click', openRoutinesDialog);
+  $('#dailyShoppingButton')?.addEventListener('click', openShoppingDialog);
+  $('#dailySettingsButton')?.addEventListener('click', openSettingsDialog);
   $('#inviteButton').addEventListener('click', createInvitation);
   $('#copyInviteButton').addEventListener('click', copyInviteLink);
   $('#saveFamilyIdentityButton').addEventListener('click', saveFamilyIdentity);
@@ -2369,9 +2564,16 @@ function setupEvents() {
   $('#forceSyncButton').addEventListener('click', forceSyncNow);
   $$('[data-theme-choice]').forEach((button) => button.addEventListener('click', () => { store.setSetting('theme', button.dataset.themeChoice); applyUserPreferences(store.getState()); renderSettingsDialog(); vibration(); }));
   $$('[data-motion-choice]').forEach((button) => button.addEventListener('click', () => { setMotionMode(button.dataset.motionChoice); renderSettingsDialog(); vibration(); showToast(`Animations ${button.textContent.toLowerCase()}`); }));
+  $('#smartContextToggle')?.addEventListener('change', (event) => { setSmartContextEnabled(event.target.checked); renderSettingsDialog(); showToast(event.target.checked ? 'Ambiance intelligente activée' : 'Ambiance intelligente désactivée'); });
+  $('#weatherToggle')?.addEventListener('change', async (event) => {
+    const enabled = event.target.checked; setWeatherEnabled(enabled);
+    if (!enabled) { localStorage.removeItem(WEATHER_CACHE_KEY); delete document.documentElement.dataset.weather; render(); renderSettingsDialog(); showToast('Météo locale désactivée'); return; }
+    try { showToast('Autorisation de localisation…'); await refreshWeather({ requestPermission:true }); render(); renderSettingsDialog(); showToast('Météo locale activée'); }
+    catch (error) { setWeatherEnabled(false); event.target.checked = false; renderSettingsDialog(); showToast(error?.code === 1 ? 'Localisation refusée · météo non activée' : 'Météo indisponible pour le moment'); }
+  });
   $$('[data-home-widget-toggle]').forEach((input) => input.addEventListener('change', () => { store.setSetting('homeWidgets', { [input.dataset.homeWidgetToggle]: input.checked }); applyUserPreferences(store.getState()); renderSettingsDialog(); }));
   $('#logoutButton').addEventListener('click', async () => { closeAccountDialog(); await store.logout(); applyAuthUI(); });
-  $('#resetButton').addEventListener('click', () => {
+  $('#resetButton')?.addEventListener('click', () => {
     const user = store.getCurrentUser();
     if (user?.role !== 'admin') { showToast('Seul Nacer peut réinitialiser l’agenda.'); return; }
     if (confirm('Supprimer événements, tâches, courses et routines, puis restaurer uniquement les profils familiaux ?')) {
@@ -2382,7 +2584,7 @@ function setupEvents() {
       showToast('L’agenda familial est maintenant vide.');
     }
   });
-  $('#installButton').addEventListener('click', installApp);
+  $('#installButton')?.addEventListener('click', installApp);
   $('#eventDialog').addEventListener('click', (event) => { if (event.target === $('#eventDialog')) closeEventDialog(); });
   $('#accountDialog').addEventListener('click', (event) => { if (event.target === $('#accountDialog')) closeAccountDialog(); });
   $('#memberEditDialog').addEventListener('click', (event) => { if (event.target === $('#memberEditDialog')) closeMemberEditDialog(); });
@@ -2395,6 +2597,7 @@ function setupEvents() {
   $('#collaborationDialog').addEventListener('click', (event) => { if (event.target === $('#collaborationDialog')) closeCollaborationDialog(); });
   $('#searchDialog').addEventListener('click', (event) => { if (event.target === $('#searchDialog')) closeSearchDialog(); });
   $('#settingsDialog').addEventListener('click', (event) => { if (event.target === $('#settingsDialog')) closeSettingsDialog(); });
+  $('#quickAddDialog')?.addEventListener('click', (event) => { if (event.target === $('#quickAddDialog')) closeQuickAddDialog(); });
   $('[data-close-settings]').addEventListener('click', closeSettingsDialog);
   $('#commentForm').addEventListener('submit', submitComment);
   $('#collaborationAttachmentInput').addEventListener('change', handleCollaborationAttachment);
@@ -2523,6 +2726,7 @@ async function bootstrap() {
   applyAuthUI();
   setupTemporalUI();
   if (auth.authenticated) announceVersionIfNeeded();
+  if (auth.authenticated && weatherEnabled()) { refreshWeather().catch(() => {}); window.clearInterval(weatherRefreshTimer); weatherRefreshTimer = window.setInterval(() => refreshWeather().catch(() => {}), 30 * 60 * 1000); }
   if (auth.authenticated && state.deepLinkEvent) setTimeout(() => openEventDialog(state.deepLinkEvent), 250);
   else if (auth.authenticated && state.deepLinkTask) setTimeout(() => openTaskDialog(state.deepLinkTask), 250);
   else if (auth.authenticated && new URLSearchParams(location.search).get('action') === 'task') setTimeout(() => openTaskDialog(), 250);

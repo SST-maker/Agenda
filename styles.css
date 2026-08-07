@@ -1926,3 +1926,122 @@ html[data-theme="dark"] .event-card.is-family-together { box-shadow:0 14px 36px 
   0%,100% { opacity:.5; transform:scale(.96); }
   50% { opacity:1; transform:scale(1.05); }
 }
+
+/* v4.2 — Intelligence du quotidien */
+.context-strip {
+  display:flex; align-items:center; gap:8px; margin:14px 0 4px; max-width:100%; overflow-x:auto; overflow-y:hidden;
+  padding:2px 1px 4px; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+}
+.context-strip::-webkit-scrollbar { display:none; }
+.context-chip {
+  flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; min-height:34px; max-width:min(78vw,300px); padding:8px 11px;
+  border-radius:999px; border:1px solid rgba(34,74,84,.085); background:rgba(255,255,255,.68); color:var(--petrol);
+  box-shadow:0 8px 24px rgba(34,74,84,.055); backdrop-filter:blur(18px); font:inherit; font-size:.66rem; font-weight:760;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.context-chip svg { width:14px; height:14px; flex:0 0 auto; }
+.context-chip > span:last-child { overflow:hidden; text-overflow:ellipsis; }
+.context-chip[hidden], .context-strip[hidden] { display:none !important; }
+html[data-theme="dark"] .context-chip { background:rgba(20,32,28,.72); border-color:rgba(237,226,201,.08); }
+
+.daily-status-card {
+  position:relative; overflow:hidden; display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:16px;
+  padding:20px; margin-top:18px; border-radius:28px; background:linear-gradient(145deg,rgba(255,255,255,.82),rgba(246,238,216,.68));
+  border:1px solid rgba(34,74,84,.08); box-shadow:var(--shadow-sm);
+}
+.daily-status-card::after { content:""; position:absolute; inset:auto -40px -70px auto; width:180px; height:180px; border-radius:50%; background:radial-gradient(circle,rgba(199,154,92,.14),transparent 70%); pointer-events:none; }
+.daily-status-orb { width:50px; height:50px; border-radius:18px; display:grid; place-items:center; color:var(--petrol); background:rgba(34,74,84,.075); box-shadow:inset 0 1px 0 rgba(255,255,255,.7); }
+.daily-status-orb svg { width:22px; height:22px; }
+.daily-status-card h2 { margin:2px 0 5px; font-size:1.18rem; line-height:1.12; color:var(--forest); }
+.daily-status-card p:last-child { margin:0; color:var(--muted); font-size:.73rem; }
+
+.daily-hub-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:14px; }
+.daily-hub-card {
+  position:relative; min-width:0; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:11px;
+  text-align:left; padding:15px 13px; border-radius:23px; border:1px solid rgba(34,74,84,.075); background:rgba(255,255,255,.72);
+  box-shadow:var(--shadow-sm); color:inherit; cursor:pointer;
+}
+.daily-hub-icon { width:38px; height:38px; border-radius:13px; display:grid; place-items:center; background:rgba(34,74,84,.075); color:var(--petrol); }
+.daily-hub-icon svg { width:18px; height:18px; }
+.daily-hub-card > span:nth-child(2) { min-width:0; display:grid; gap:2px; }
+.daily-hub-card small { color:var(--muted); font-size:.58rem; font-weight:760; text-transform:uppercase; letter-spacing:.04em; }
+.daily-hub-card strong { color:var(--forest); font-size:.82rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.daily-hub-card em { font-style:normal; color:var(--muted); font-size:.61rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.daily-hub-arrow { width:15px; height:15px; color:var(--muted); }
+
+.tomorrow-glance { margin-top:14px; padding:20px; border-radius:28px; border:1px solid rgba(34,74,84,.075); background:rgba(255,255,255,.68); box-shadow:var(--shadow-sm); }
+.tomorrow-glance header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:15px; }
+.tomorrow-glance h2 { margin:2px 0 0; font-size:1.02rem; color:var(--forest); }
+#tomorrowBadge { flex:0 0 auto; padding:7px 10px; border-radius:999px; background:rgba(34,74,84,.07); color:var(--petrol); font-size:.61rem; font-weight:800; }
+.tomorrow-glance-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.tomorrow-glance-grid > div { min-width:0; padding:13px; border-radius:18px; background:rgba(246,238,216,.58); display:grid; gap:3px; }
+.tomorrow-glance-grid small { color:var(--muted); font-size:.59rem; }
+.tomorrow-glance-grid strong { color:var(--forest); font-size:.79rem; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.tomorrow-glance-grid span { color:var(--muted); font-size:.62rem; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.daily-calm-card { margin-top:14px; }
+.daily-calm-actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:22px; position:relative; z-index:1; }
+.daily-calm-actions .primary-button, .daily-calm-actions .secondary-button { margin-top:0; }
+.daily-mini-settings { margin-top:14px; }
+
+.quick-add-dialog { max-width:560px; }
+.quick-add-sheet { max-width:560px; }
+.quick-add-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.quick-add-choice {
+  min-width:0; min-height:132px; padding:17px; border-radius:24px; border:1px solid rgba(34,74,84,.08); background:rgba(255,255,255,.74);
+  box-shadow:var(--shadow-sm); display:grid; align-content:start; gap:7px; text-align:left; color:inherit; cursor:pointer;
+}
+.quick-add-choice > span { width:42px; height:42px; display:grid; place-items:center; border-radius:14px; background:rgba(34,74,84,.075); color:var(--petrol); margin-bottom:3px; }
+.quick-add-choice svg { width:19px; height:19px; }
+.quick-add-choice strong { color:var(--forest); font-size:.88rem; }
+.quick-add-choice small { color:var(--muted); font-size:.66rem; line-height:1.4; }
+
+.smart-ambience-settings { margin-top:12px; }
+.settings-device-actions { margin-top:12px; }
+
+/* saisons et contexte : très léger, le fond reste la même identité */
+html[data-smart-context="true"][data-season="summer"] body::after { filter:saturate(1.04) brightness(1.01); }
+html[data-smart-context="true"][data-season="autumn"] body::after { filter:saturate(1.03) sepia(.025); }
+html[data-smart-context="true"][data-season="winter"] body::after { filter:saturate(.94) hue-rotate(2deg); }
+html[data-smart-context="true"][data-season="spring"] body::after { filter:saturate(1.035); }
+html[data-smart-context="true"][data-weekend="true"] .hero-card { box-shadow:0 24px 70px rgba(139,94,60,.105), inset 0 1px 0 rgba(255,255,255,.36); }
+html[data-smart-context="true"][data-weekend="true"] .contextWeekendChip { border-color:rgba(199,154,92,.18); }
+html[data-smart-context="true"][data-weather="rain"] body::before { opacity:.85; filter:saturate(.86); }
+html[data-smart-context="true"][data-weather="cloud"] body::before { opacity:.80; filter:saturate(.9); }
+html[data-smart-context="true"][data-weather="snow"] body::before { filter:brightness(1.035) saturate(.85); }
+html[data-smart-context="true"][data-weather="sun"] body::before { filter:saturate(1.04) brightness(1.015); }
+html[data-smart-context="true"][data-weather="storm"] body::before { opacity:.82; filter:saturate(.82) contrast(1.02); }
+
+#liveMomentButton[data-urgency="near"] { box-shadow:0 0 0 1px rgba(199,154,92,.14), 0 14px 34px rgba(199,154,92,.12); }
+html[data-animation-mode="live"] #liveMomentButton[data-urgency="near"] { animation:v42NearMoment 3.2s ease-in-out infinite; }
+@keyframes v42NearMoment { 0%,100%{transform:translateZ(0);box-shadow:0 0 0 1px rgba(199,154,92,.12),0 14px 34px rgba(199,154,92,.10)} 50%{transform:translateY(-1px);box-shadow:0 0 0 5px rgba(199,154,92,.035),0 18px 42px rgba(199,154,92,.15)} }
+
+html[data-theme="dark"] .daily-status-card,
+html[data-theme="dark"] .daily-hub-card,
+html[data-theme="dark"] .tomorrow-glance,
+html[data-theme="dark"] .quick-add-choice { background:rgba(20,32,28,.82); border-color:rgba(237,226,201,.075); }
+html[data-theme="dark"] .daily-status-card h2,
+html[data-theme="dark"] .daily-hub-card strong,
+html[data-theme="dark"] .tomorrow-glance h2,
+html[data-theme="dark"] .tomorrow-glance-grid strong,
+html[data-theme="dark"] .quick-add-choice strong { color:var(--ink); }
+html[data-theme="dark"] .tomorrow-glance-grid > div { background:rgba(237,226,201,.04); }
+
+@media (max-width:700px) {
+  .daily-hub-grid { grid-template-columns:1fr; }
+  .daily-hub-card { min-height:72px; }
+  .context-strip { margin-inline:-2px; padding-inline:2px; }
+  .nav-item span { font-size:.50rem; letter-spacing:-.01em; }
+}
+@media (max-width:430px) {
+  .quick-add-grid { grid-template-columns:1fr 1fr; gap:8px; }
+  .quick-add-choice { min-height:118px; padding:14px 12px; border-radius:20px; }
+  .quick-add-choice small { font-size:.60rem; }
+  .tomorrow-glance-grid { grid-template-columns:1fr; }
+  .daily-status-card { padding:17px; border-radius:24px; }
+  .daily-status-orb { width:44px; height:44px; border-radius:15px; }
+  .daily-status-card h2 { font-size:1rem; }
+  .context-chip { max-width:72vw; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #liveMomentButton[data-urgency="near"] { animation:none !important; }
+}

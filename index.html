@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#F6EED8">
   <meta name="description" content="AGENDA, l'organisation familiale partagée, fluide et apaisée.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net; manifest-src 'self'; worker-src 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://api.open-meteo.com; manifest-src 'self'; worker-src 'self';">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="AGENDA">
@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=4.1.1">
+  <link rel="stylesheet" href="styles.css?v=4.2.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -189,6 +189,14 @@
           </button>
         </div>
 
+        <section class="context-strip reveal" id="contextStrip" aria-label="Contexte du moment">
+          <span class="context-chip" id="contextTimeChip"><svg><use href="#i-sparkles"></use></svg><span>Le bon rythme</span></span>
+          <span class="context-chip" id="contextWeekendChip" hidden><span>✨</span><span>Week-end</span></span>
+          <button class="context-chip tap" id="contextWeatherChip" type="button" hidden><span id="contextWeatherIcon">☀️</span><span id="contextWeatherText">Météo</span></button>
+          <span class="context-chip" id="contextBirthdayChip" hidden><span>🎂</span><span></span></span>
+          <button class="context-chip tap" id="contextNextChip" type="button" hidden><svg><use href="#i-clock"></use></svg><span></span></button>
+        </section>
+
         <section class="hero-card reveal" aria-labelledby="heroTitle">
           <div class="hero-glow"></div>
           <div class="hero-content">
@@ -213,9 +221,9 @@
         </section>
 
         <section class="quick-actions reveal" aria-label="Actions rapides">
-          <button class="quick-action-card tap" data-open-event>
+          <button class="quick-action-card tap" data-open-quick-add>
             <span class="quick-action-icon"><svg><use href="#i-plus"></use></svg></span>
-            <div><strong>Ajouter</strong><small>Créer un nouveau moment</small></div>
+            <div><strong>Ajouter</strong><small>Événement, tâche, course ou routine</small></div>
           </button>
           <button class="quick-action-card tap" data-view="agenda" data-force-mode="month">
             <span class="quick-action-icon"><svg><use href="#i-calendar"></use></svg></span>
@@ -373,46 +381,63 @@
         <div class="family-cards" id="familyCards"></div>
       </section>
 
-      <section class="view" id="view-focus" data-view-section="focus" aria-labelledby="focusTitle">
+      <section class="view" id="view-daily" data-view-section="daily" aria-labelledby="dailyTitle">
         <div class="page-heading reveal">
           <div>
-            <p class="eyebrow">Espace calme</p>
-            <h1 id="focusTitle">Moins de bruit<br>Plus de présence</h1>
+            <p class="eyebrow">Le quotidien</p>
+            <h1 id="dailyTitle">Tout ce qui compte<br>sans chercher partout</h1>
+            <p>Tâches, routines, courses et respiration réunies dans un seul espace</p>
           </div>
+          <button class="round-action large tap" data-open-quick-add aria-label="Ajouter"><svg><use href="#i-plus"></use></svg></button>
         </div>
 
-        <section class="calm-card reveal">
-          <div class="calm-sun"><svg><use href="#i-sun"></use></svg></div>
-          <p class="card-kicker">Temps pour soi</p>
-          <h2 id="calmHeadline">Votre prochain vrai moment libre commence à 20 h 30</h2>
-          <p id="calmBody">AGENDA protège automatiquement les respirations entre les obligations.</p>
-          <button class="primary-button tap" id="protectMomentButton">Protéger ce moment</button>
+        <section class="daily-status-card reveal" id="dailyStatusCard">
+          <div class="daily-status-orb"><svg><use href="#i-sparkles"></use></svg></div>
+          <div><p class="card-kicker">En ce moment</p><h2 id="dailyStatusTitle">Votre journée est sous contrôle</h2><p id="dailyStatusCopy">Tout ce qu’il reste à faire apparaît ici</p></div>
         </section>
 
-        <section class="settings-card reveal">
+        <section class="daily-hub-grid reveal" aria-label="Outils du quotidien">
+          <button class="daily-hub-card tap" id="dailyTasksButton" type="button">
+            <span class="daily-hub-icon"><svg><use href="#i-circle-check"></use></svg></span>
+            <span><small>Tâches</small><strong id="dailyTasksCount">0 à faire</strong><em id="dailyTasksMeta">Aujourd’hui</em></span>
+            <svg class="daily-hub-arrow"><use href="#i-chevron-right"></use></svg>
+          </button>
+          <button class="daily-hub-card tap" id="dailyRoutinesButton" type="button">
+            <span class="daily-hub-icon"><svg><use href="#i-repeat"></use></svg></span>
+            <span><small>Routines</small><strong id="dailyRoutinesCount">0 restante</strong><em id="dailyRoutinesMeta">Aujourd’hui</em></span>
+            <svg class="daily-hub-arrow"><use href="#i-chevron-right"></use></svg>
+          </button>
+          <button class="daily-hub-card tap" id="dailyShoppingButton" type="button">
+            <span class="daily-hub-icon"><svg><use href="#i-cart"></use></svg></span>
+            <span><small>Courses</small><strong id="dailyShoppingCount">Liste vide</strong><em id="dailyShoppingMeta">Partagée en temps réel</em></span>
+            <svg class="daily-hub-arrow"><use href="#i-chevron-right"></use></svg>
+          </button>
+        </section>
+
+        <section class="tomorrow-glance reveal" aria-labelledby="tomorrowGlanceTitle">
+          <header><div><p class="eyebrow">Demain en un coup d’œil</p><h2 id="tomorrowGlanceTitle">Un peu d’avance, sans y penser</h2></div><span id="tomorrowBadge">Calme</span></header>
+          <div class="tomorrow-glance-grid">
+            <div><small>Premier rendez-vous</small><strong id="tomorrowFirstEvent">Rien de prévu</strong><span id="tomorrowFirstEventMeta">—</span></div>
+            <div><small>À prévoir</small><strong id="tomorrowWorkload">Rien à signaler</strong><span id="tomorrowWorkloadMeta">Profitez-en</span></div>
+          </div>
+        </section>
+
+        <section class="calm-card reveal daily-calm-card">
+          <div class="calm-sun"><svg><use href="#i-sun"></use></svg></div>
+          <p class="card-kicker">Pause & équilibre</p>
+          <h2 id="calmHeadline">Votre prochain vrai moment libre arrive bientôt</h2>
+          <p id="calmBody">AGENDA repère les respirations entre les obligations</p>
+          <div class="daily-calm-actions"><button class="primary-button tap" id="protectMomentButton">Protéger ce moment</button><button class="secondary-button tap" id="dailySettingsButton"><svg><use href="#i-settings"></use></svg>Réglages</button></div>
+        </section>
+
+        <section class="settings-card reveal daily-mini-settings">
           <div class="setting-row">
-            <div><strong>Mode doux</strong><span>Réduit les notifications non essentielles.</span></div>
+            <div><strong>Mode doux</strong><span>Réduit les notifications non essentielles</span></div>
             <label class="switch"><input type="checkbox" id="quietModeToggle"><span></span></label>
           </div>
           <div class="setting-row">
-            <div><strong>Notifications</strong><span id="notificationSettingCopy">Rappels de rendez-vous, tâches et résumé du matin.</span></div>
+            <div><strong>Notifications</strong><span id="notificationSettingCopy">Rappels de rendez-vous, tâches et résumé du matin</span></div>
             <button class="secondary-button tap" id="manageNotificationsButton"><svg><use href="#i-bell"></use></svg>Configurer</button>
-          </div>
-          <div class="setting-row">
-            <div><strong>Partage familial</strong><span>Invitation privée valable 72 heures.</span></div>
-            <button class="secondary-button tap" id="manageAccessButton">Gérer les accès</button>
-          </div>
-          <div class="setting-row">
-            <div><strong>Installation</strong><span>Ajoute AGENDA à l’écran d’accueil.</span></div>
-            <button class="secondary-button tap" id="installButton"><svg><use href="#i-download"></use></svg>Installer</button>
-          </div>
-          <div class="setting-row">
-            <div><strong>Réglages de l’app</strong><span>Apparence, accueil, sauvegarde et état de synchronisation</span></div>
-            <button class="secondary-button tap" id="openSettingsButton"><svg><use href="#i-settings"></use></svg>Ouvrir</button>
-          </div>
-          <div class="setting-row">
-            <div><strong>Réinitialiser l’agenda</strong><span>Supprime les événements et restaure Nacer, Romane et Chacha.</span></div>
-            <button class="danger-text-button tap" id="resetButton"><svg><use href="#i-trash"></use></svg>Réinitialiser</button>
           </div>
         </section>
       </section>
@@ -421,9 +446,9 @@
     <nav class="bottom-nav" aria-label="Navigation principale">
       <button class="nav-item is-active tap" data-view="home"><svg><use href="#i-home"></use></svg><span>Aujourd’hui</span></button>
       <button class="nav-item tap" data-view="agenda"><svg><use href="#i-calendar"></use></svg><span>Agenda</span></button>
-      <button class="nav-add tap" data-open-event aria-label="Ajouter un événement"><span><svg><use href="#i-plus"></use></svg></span></button>
+      <button class="nav-add tap" data-open-quick-add aria-label="Ajouter"><span><svg><use href="#i-plus"></use></svg></span></button>
       <button class="nav-item tap" data-view="family"><svg><use href="#i-users"></use></svg><span>Famille</span></button>
-      <button class="nav-item tap" data-view="focus"><svg><use href="#i-sparkles"></use></svg><span>Respirer</span></button>
+      <button class="nav-item tap" data-view="daily"><svg><use href="#i-list"></use></svg><span>Quotidien</span></button>
     </nav>
   </div>
 
@@ -706,11 +731,27 @@
     </section>
   </dialog>
 
+  <dialog class="account-dialog quick-add-dialog" id="quickAddDialog" aria-labelledby="quickAddTitle">
+    <section class="account-sheet quick-add-sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div><p class="eyebrow">Ajouter en un geste</p><h2 id="quickAddTitle">Qu’est-ce qu’on ajoute ?</h2></div>
+        <button type="button" class="icon-button tap" data-close-quick-add aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
+      </header>
+      <div class="quick-add-grid">
+        <button class="quick-add-choice tap" type="button" data-quick-add-target="event"><span><svg><use href="#i-calendar"></use></svg></span><strong>Événement</strong><small>Rendez-vous ou moment familial</small></button>
+        <button class="quick-add-choice tap" type="button" data-quick-add-target="task"><span><svg><use href="#i-circle-check"></use></svg></span><strong>Tâche</strong><small>Quelque chose à ne pas oublier</small></button>
+        <button class="quick-add-choice tap" type="button" data-quick-add-target="shopping"><span><svg><use href="#i-cart"></use></svg></span><strong>Course</strong><small>Ajouter directement à la liste</small></button>
+        <button class="quick-add-choice tap" type="button" data-quick-add-target="routine"><span><svg><use href="#i-repeat"></use></svg></span><strong>Routine</strong><small>Une habitude qui revient</small></button>
+      </div>
+    </section>
+  </dialog>
+
   <dialog class="account-dialog settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
     <section class="account-sheet settings-sheet">
       <div class="sheet-handle"></div>
       <header class="sheet-header">
-        <div><p class="eyebrow">Petits détails & confort</p><h2 id="settingsTitle">Réglages de l’app</h2><small class="settings-version">AGENDA 4.1.1</small></div>
+        <div><p class="eyebrow">Intelligence du quotidien</p><h2 id="settingsTitle">Réglages de l’app</h2><small class="settings-version">AGENDA 4.2</small></div>
         <button type="button" class="icon-button tap" data-close-settings aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
       </header>
 
@@ -736,6 +777,15 @@
           </div>
           <p class="motion-setting-note" id="motionSettingNote">Vivantes garde les détails premium actifs en continu</p>
         </div>
+      </section>
+
+      <section class="settings-group">
+        <div class="settings-section-heading"><span><svg><use href="#i-sparkles"></use></svg></span><div><strong>Ambiance intelligente</strong><small>Des détails contextuels utiles, toujours désactivables</small></div></div>
+        <div class="widget-settings smart-ambience-settings">
+          <label><span><strong>Contexte vivant</strong><small>Week-end, saison, anniversaire et événement imminent</small></span><span class="switch"><input type="checkbox" id="smartContextToggle"><span></span></span></label>
+          <label><span><strong>Météo locale</strong><small id="weatherSettingCopy">Optionnelle · position utilisée uniquement pour récupérer la météo</small></span><span class="switch"><input type="checkbox" id="weatherToggle"><span></span></span></label>
+        </div>
+        <p class="settings-note">La météo est désactivée par défaut. Aucune coordonnée GPS n’est enregistrée par AGENDA</p>
       </section>
 
       <section class="settings-group">
@@ -769,6 +819,10 @@
           <div><span id="healthInstallDot" class="health-dot"></span><strong id="healthInstall">Installation</strong><small id="healthInstallCopy">—</small></div>
         </div>
         <button class="secondary-button tap settings-sync-button" id="forceSyncButton" type="button"><svg><use href="#i-refresh"></use></svg>Synchroniser maintenant</button>
+        <div class="settings-actions-grid settings-device-actions">
+          <button class="secondary-button tap" id="installButton" type="button"><svg><use href="#i-download"></use></svg>Installer l’app</button>
+          <button class="danger-text-button tap" id="resetButton" type="button"><svg><use href="#i-trash"></use></svg>Réinitialiser</button>
+        </div>
       </section>
     </section>
   </dialog>
@@ -796,6 +850,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=4.1.1"></script>
+  <script type="module" src="js/app.js?v=4.2.0"></script>
 </body>
 </html>
