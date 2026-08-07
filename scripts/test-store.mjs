@@ -23,7 +23,7 @@ globalThis.localStorage = {
 };
 globalThis.location = { href: 'https://example.test/agenda/', pathname: '/agenda/' };
 globalThis.history = { replaceState() {} };
-Object.defineProperty(globalThis, 'navigator', { value: { onLine: true }, configurable: true });
+Object.defineProperty(globalThis, 'navigator', { value: { onLine: true, userAgent: 'AgendaTest' }, configurable: true });
 globalThis.addEventListener = () => {};
 globalThis.BroadcastChannel = class { addEventListener() {} postMessage() {} close() {} };
 if (!globalThis.CustomEvent) globalThis.CustomEvent = class extends Event { constructor(type, options={}) { super(type); this.detail = options.detail; } };
@@ -82,4 +82,48 @@ const invitation = await store.createInvitation();
 assert.equal(invitation.token, 'AGENDA-ABCDEF123456');
 assert.match(invitation.link, /\?join=AGENDA-ABCDEF123456$/);
 
-console.log('Test du store réussi : auth, événements, séries, identité familiale, profils et invitation.');
+
+
+const task = store.addTask({
+  title: 'Récupérer le colis', dueDate: '2026-08-12', dueTime: '17:30', priority: 'high',
+  responsibleMemberId: store.getState().members[0].id, notes: '', reminderMinutes: 30, status: 'pending'
+});
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.tasks.length, 1);
+assert.equal(store.getState().tasks[0].title, 'Récupérer le colis');
+store.toggleTask(task.id, true);
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.tasks[0].status, 'done');
+store.deleteTask(task.id);
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.tasks.length, 0);
+
+await store.saveNotificationPreferences({ pushEnabled: false, eventReminders: true, taskReminders: true, dailySummary: true, dailySummaryTime: '08:00' });
+assert.equal(store.getState().notificationPreferences.dailySummaryTime, '08:00');
+
+const shopping = store.addShoppingItem({ name: 'Lait', quantity: 'x2', category: 'fresh' });
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.shoppingItems.length, 1);
+assert.equal(store.getState().shoppingItems[0].name, 'Lait');
+store.toggleShoppingItem(shopping.id, true);
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.shoppingItems[0].checked, true);
+store.clearCheckedShoppingItems();
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.shoppingItems.length, 0);
+
+const routine = store.addRoutine({ title: 'Préparer le sac', weekdays: [1,2,3,4,5], time: '19:30', responsibleMemberId: store.getState().members[0].id, notes: '', active: true });
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.routines.length, 1);
+assert.deepEqual(mockDb.routines[0].weekdays, [1,2,3,4,5]);
+store.toggleRoutineCompletion(routine.id, '2026-08-07', true);
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.routineCompletions.length, 1);
+store.toggleRoutineCompletion(routine.id, '2026-08-07', false);
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.routineCompletions.length, 0);
+store.deleteRoutine(routine.id);
+await new Promise((resolve) => setTimeout(resolve, 30));
+assert.equal(mockDb.routines.length, 0);
+
+console.log('Test du store réussi : auth, événements, séries, tâches, courses, routines, notifications, identité familiale, profils et invitation.');

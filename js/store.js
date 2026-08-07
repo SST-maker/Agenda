@@ -1,11 +1,11 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js';
 
-const STORAGE_KEY = 'agenda-family-supabase-state-v4';
-const QUEUE_KEY = 'agenda-family-supabase-queue-v4';
-const PENDING_ONBOARDING_KEY = 'agenda-family-supabase-onboarding-v4';
+const STORAGE_KEY = 'agenda-family-supabase-state-v5';
+const QUEUE_KEY = 'agenda-family-supabase-queue-v5';
+const PENDING_ONBOARDING_KEY = 'agenda-family-supabase-onboarding-v5';
 const CHANNEL_NAME = 'agenda-family-supabase-tabs';
-const DATA_VERSION = 4;
+const DATA_VERSION = 5;
 
 const uid = () => globalThis.crypto?.randomUUID?.() || `evt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -43,6 +43,9 @@ function createSeed() {
     ],
     events: [],
     tasks: [],
+    shoppingItems: [],
+    routines: [],
+    routineCompletions: [],
     notificationPreferences: { pushEnabled: false, eventReminders: true, taskReminders: true, dailySummary: true, dailySummaryTime: '07:30' },
     syncedAt: null
   };
@@ -58,6 +61,9 @@ function normalizeState(candidate) {
     members: Array.isArray(candidate.members) && candidate.members.length ? candidate.members : seed.members,
     events: Array.isArray(candidate.events) ? candidate.events : [],
     tasks: Array.isArray(candidate.tasks) ? candidate.tasks : [],
+    shoppingItems: Array.isArray(candidate.shoppingItems) ? candidate.shoppingItems : [],
+    routines: Array.isArray(candidate.routines) ? candidate.routines : [],
+    routineCompletions: Array.isArray(candidate.routineCompletions) ? candidate.routineCompletions : [],
     notificationPreferences: {
       pushEnabled: Boolean(candidate.notificationPreferences?.pushEnabled),
       eventReminders: candidate.notificationPreferences?.eventReminders !== false,
@@ -173,6 +179,71 @@ function taskToRow(task, familyId, userId) {
     completed_at: task.status === 'done' ? (task.completedAt || new Date().toISOString()) : null,
     completed_by: task.status === 'done' ? userId : null,
     updated_by: userId
+  };
+}
+
+function mapShoppingItem(row) {
+  return {
+    id: row.id,
+    familyId: row.family_id,
+    name: row.name,
+    quantity: row.quantity || '',
+    category: row.category || 'other',
+    checked: Boolean(row.checked),
+    checkedAt: row.checked_at || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function shoppingItemToRow(item, familyId, userId) {
+  return {
+    id: item.id,
+    family_id: familyId,
+    name: String(item.name || '').trim().slice(0, 120),
+    quantity: String(item.quantity || '').trim().slice(0, 30) || null,
+    category: ['fresh','grocery','household','hygiene','other'].includes(item.category) ? item.category : 'other',
+    checked: Boolean(item.checked),
+    checked_at: item.checked ? (item.checkedAt || new Date().toISOString()) : null,
+    checked_by: item.checked ? userId : null,
+    updated_by: userId
+  };
+}
+
+function mapRoutine(row) {
+  return {
+    id: row.id,
+    familyId: row.family_id,
+    title: row.title,
+    weekdays: Array.isArray(row.weekdays) ? row.weekdays.map(Number) : [],
+    time: row.routine_time ? String(row.routine_time).slice(0, 5) : '',
+    responsibleMemberId: row.responsible_member_id || '',
+    notes: row.notes || '',
+    active: row.active !== false,
+    updatedAt: row.updated_at
+  };
+}
+
+function routineToRow(routine, familyId, userId) {
+  return {
+    id: routine.id,
+    family_id: familyId,
+    title: String(routine.title || '').trim().slice(0, 120),
+    weekdays: Array.isArray(routine.weekdays) ? [...new Set(routine.weekdays.map(Number).filter((day) => day >= 1 && day <= 7))].sort((a,b) => a-b) : [],
+    routine_time: routine.time || null,
+    responsible_member_id: routine.responsibleMemberId || null,
+    notes: String(routine.notes || '').trim().slice(0, 300) || null,
+    active: routine.active !== false,
+    updated_by: userId
+  };
+}
+
+function mapRoutineCompletion(row) {
+  return {
+    routineId: row.routine_id,
+    date: row.completion_date,
+    completedBy: row.completed_by || null,
+    createdAt: row.created_at
   };
 }
 
@@ -495,14 +566,17 @@ class AgendaStore extends EventTarget {
     }
 
     const familyId = membershipResult.data.family_id;
-    const [familyResult, membersResult, eventsResult, tasksResult, notificationPreferencesResult] = await Promise.all([
+    const [familyResult, membersResult, eventsResult, tasksResult, shoppingResult, routinesResult, routineCompletionsResult, notificationPreferencesResult] = await Promise.all([
       this.supabase.from('families').select('id, name, symbol, photo_url, quiet_mode, invite_expires_at').eq('id', familyId).single(),
       this.supabase.from('members').select('*').eq('family_id', familyId).order('sort_order'),
       this.supabase.from('events').select('*').eq('family_id', familyId).order('event_date').order('event_time'),
       this.supabase.from('tasks').select('*').eq('family_id', familyId).order('due_date').order('due_time'),
+      this.supabase.from('shopping_items').select('*').eq('family_id', familyId).order('checked').order('created_at'),
+      this.supabase.from('routines').select('*').eq('family_id', familyId).order('routine_time').order('title'),
+      this.supabase.from('routine_completions').select('*').eq('family_id', familyId),
       this.supabase.from('notification_preferences').select('*').eq('user_id', userId).maybeSingle()
     ]);
-    for (const result of [familyResult, membersResult, eventsResult, tasksResult, notificationPreferencesResult]) if (result.error) throw result.error;
+    for (const result of [familyResult, membersResult, eventsResult, tasksResult, shoppingResult, routinesResult, routineCompletionsResult, notificationPreferencesResult]) if (result.error) throw result.error;
 
     this.needsFamily = false;
     this.currentUser = {
@@ -520,6 +594,9 @@ class AgendaStore extends EventTarget {
       members: membersResult.data.map(mapMember),
       events: eventsResult.data.map(mapEvent),
       tasks: tasksResult.data.map(mapTask),
+      shoppingItems: shoppingResult.data.map(mapShoppingItem),
+      routines: routinesResult.data.map(mapRoutine),
+      routineCompletions: routineCompletionsResult.data.map(mapRoutineCompletion),
       notificationPreferences: mapNotificationPreferences(notificationPreferencesResult.data),
       syncedAt: new Date().toISOString()
     };
@@ -539,6 +616,9 @@ class AgendaStore extends EventTarget {
       .channel(`agenda-family-${familyId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, schedulePull)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, schedulePull)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_items' }, schedulePull)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'routines' }, schedulePull)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'routine_completions' }, schedulePull)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, schedulePull)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'families' }, schedulePull)
       .subscribe((status) => {
@@ -626,6 +706,77 @@ class AgendaStore extends EventTarget {
     this.enqueue('delete_task', { id });
   }
 
+  addShoppingItem(item) {
+    const entry = { ...item, id: item.id || uid(), familyId: this.state.family.id, checked: false, checkedAt: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    this.state.shoppingItems.push(entry);
+    this.saveState('shopping-item-added');
+    this.enqueue('upsert_shopping_item', entry);
+    return entry;
+  }
+
+  updateShoppingItem(id, changes) {
+    const index = this.state.shoppingItems.findIndex((item) => item.id === id);
+    if (index < 0) return null;
+    this.state.shoppingItems[index] = { ...this.state.shoppingItems[index], ...changes, id, updatedAt: new Date().toISOString() };
+    this.saveState('shopping-item-updated');
+    this.enqueue('upsert_shopping_item', this.state.shoppingItems[index]);
+    return this.state.shoppingItems[index];
+  }
+
+  toggleShoppingItem(id, checked) {
+    return this.updateShoppingItem(id, { checked: Boolean(checked), checkedAt: checked ? new Date().toISOString() : null });
+  }
+
+  deleteShoppingItem(id) {
+    this.state.shoppingItems = this.state.shoppingItems.filter((item) => item.id !== id);
+    this.saveState('shopping-item-deleted');
+    this.enqueue('delete_shopping_item', { id });
+  }
+
+  clearCheckedShoppingItems() {
+    const ids = this.state.shoppingItems.filter((item) => item.checked).map((item) => item.id);
+    if (!ids.length) return;
+    this.state.shoppingItems = this.state.shoppingItems.filter((item) => !item.checked);
+    this.saveState('shopping-checked-cleared');
+    this.enqueue('clear_checked_shopping_items', {});
+  }
+
+  addRoutine(routine) {
+    const item = { ...routine, id: routine.id || uid(), familyId: this.state.family.id, active: routine.active !== false, updatedAt: new Date().toISOString() };
+    this.state.routines.push(item);
+    this.saveState('routine-added');
+    this.enqueue('upsert_routine', item);
+    return item;
+  }
+
+  updateRoutine(id, changes) {
+    const index = this.state.routines.findIndex((routine) => routine.id === id);
+    if (index < 0) return null;
+    this.state.routines[index] = { ...this.state.routines[index], ...changes, id, updatedAt: new Date().toISOString() };
+    this.saveState('routine-updated');
+    this.enqueue('upsert_routine', this.state.routines[index]);
+    return this.state.routines[index];
+  }
+
+  deleteRoutine(id) {
+    this.state.routines = this.state.routines.filter((routine) => routine.id !== id);
+    this.state.routineCompletions = this.state.routineCompletions.filter((completion) => completion.routineId !== id);
+    this.saveState('routine-deleted');
+    this.enqueue('delete_routine', { id });
+  }
+
+  toggleRoutineCompletion(routineId, date, done) {
+    const key = (item) => item.routineId === routineId && item.date === date;
+    if (done) {
+      if (!this.state.routineCompletions.some(key)) this.state.routineCompletions.push({ routineId, date, completedBy: this.session?.user?.id || null, createdAt: new Date().toISOString() });
+      this.enqueue('complete_routine', { routineId, date });
+    } else {
+      this.state.routineCompletions = this.state.routineCompletions.filter((item) => !key(item));
+      this.enqueue('uncomplete_routine', { routineId, date });
+    }
+    this.saveState(done ? 'routine-completed' : 'routine-reopened');
+  }
+
   setSetting(key, value) {
     if (key !== 'quietMode') return;
     this.state.settings.quietMode = Boolean(value);
@@ -636,6 +787,9 @@ class AgendaStore extends EventTarget {
   reset() {
     this.state.events = [];
     this.state.tasks = [];
+    this.state.shoppingItems = [];
+    this.state.routines = [];
+    this.state.routineCompletions = [];
     this.saveState('reset');
     this.enqueue('reset_family_content', {});
   }
@@ -757,6 +911,9 @@ class AgendaStore extends EventTarget {
       members: this.state.members,
       events: this.state.events,
       tasks: this.state.tasks,
+      shoppingItems: this.state.shoppingItems,
+      routines: this.state.routines,
+      routineCompletions: this.state.routineCompletions,
       notificationPreferences: this.state.notificationPreferences,
       settings: this.state.settings
     };
@@ -793,16 +950,40 @@ class AgendaStore extends EventTarget {
       case 'delete_task':
         result = await this.supabase.from('tasks').delete().eq('id', operation.payload.id).eq('family_id', familyId);
         break;
+      case 'upsert_shopping_item':
+        result = await this.supabase.from('shopping_items').upsert(shoppingItemToRow(operation.payload, familyId, userId));
+        break;
+      case 'delete_shopping_item':
+        result = await this.supabase.from('shopping_items').delete().eq('id', operation.payload.id).eq('family_id', familyId);
+        break;
+      case 'clear_checked_shopping_items':
+        result = await this.supabase.from('shopping_items').delete().eq('family_id', familyId).eq('checked', true);
+        break;
+      case 'upsert_routine':
+        result = await this.supabase.from('routines').upsert(routineToRow(operation.payload, familyId, userId));
+        break;
+      case 'delete_routine':
+        result = await this.supabase.from('routines').delete().eq('id', operation.payload.id).eq('family_id', familyId);
+        break;
+      case 'complete_routine':
+        result = await this.supabase.from('routine_completions').upsert({ routine_id: operation.payload.routineId, family_id: familyId, completion_date: operation.payload.date, completed_by: userId });
+        break;
+      case 'uncomplete_routine':
+        result = await this.supabase.from('routine_completions').delete().eq('routine_id', operation.payload.routineId).eq('family_id', familyId).eq('completion_date', operation.payload.date);
+        break;
       case 'update_family':
         result = await this.supabase.from('families').update({ quiet_mode: Boolean(operation.payload.quietMode) }).eq('id', familyId);
         break;
       case 'reset_family_content':
         {
-          const [eventsResult, tasksResult] = await Promise.all([
+          const [eventsResult, tasksResult, shoppingResult, routinesResult, completionsResult] = await Promise.all([
             this.supabase.from('events').delete().eq('family_id', familyId),
-            this.supabase.from('tasks').delete().eq('family_id', familyId)
+            this.supabase.from('tasks').delete().eq('family_id', familyId),
+            this.supabase.from('shopping_items').delete().eq('family_id', familyId),
+            this.supabase.from('routines').delete().eq('family_id', familyId),
+            this.supabase.from('routine_completions').delete().eq('family_id', familyId)
           ]);
-          result = eventsResult.error ? eventsResult : tasksResult;
+          result = [eventsResult, tasksResult, shoppingResult, routinesResult, completionsResult].find((entry) => entry.error) || { error: null };
         }
         break;
       default:

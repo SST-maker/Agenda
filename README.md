@@ -72,3 +72,23 @@ La clé présente dans le navigateur doit être uniquement la **Publishable key*
 - interface d’accueil plus intuitive.
 
 Pour un projet déjà en ligne, suivre `MISE_A_JOUR_V3_3.md`.
+
+## v3.3.1
+- photo de famille commune, modifiable par l’administrateur ;
+- affichage de la photo dans l’espace Famille ;
+- suppression du scroll horizontal des actions rapides sur mobile ;
+- les blocs « Prochain » et « Famille » s’adaptent désormais à la largeur de l’écran.
+
+
+## Nouveautés v3.4
+- tâches familiales partagées ;
+- rappels configurables par rendez-vous et par tâche ;
+- Web Push via Supabase Edge Functions ;
+- résumé du matin ;
+- panneau de notifications par appareil ;
+- navigation directe depuis une notification.
+
+Pour une mise à jour existante, voir `MISE_A_JOUR_V3_4.md`.
+
+## v3.5 — Hub familial du quotidien
+La v3.5 ajoute la liste de courses partagée, les routines familiales et un fil d'accueil unifié. Le module Repas reste volontairement hors périmètre. Pour une installation déjà en v3.4, voir `MISE_A_JOUR_V3_5.md`.

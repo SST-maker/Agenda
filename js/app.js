@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.4.0';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.4.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.5.0';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.5.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -12,6 +12,8 @@ const state = {
   weekAnchor: startOfWeek(new Date()),
   agendaMode: 'flow',
   taskFilter: 'today',
+  shoppingFilter: 'open',
+  routineFilter: 'today',
   deepLinkEvent: new URLSearchParams(location.search).get('event') || '',
   deepLinkTask: new URLSearchParams(location.search).get('task') || '',
   deferredInstallPrompt: null,
@@ -24,6 +26,14 @@ const monthShort = new Intl.DateTimeFormat('fr-FR', { month: 'short' });
 const monthLong = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
 const weekdayNarrow = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' });
 const longDate = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+const SHOPPING_CATEGORY_META = {
+  fresh: { label: 'Frais', icon: '🍎' },
+  grocery: { label: 'Épicerie', icon: '🥫' },
+  household: { label: 'Maison', icon: '🧽' },
+  hygiene: { label: 'Hygiène', icon: '🧴' },
+  other: { label: 'Autre', icon: '🛍️' }
+};
+const WEEKDAY_LABELS = { 1: 'Lun', 2: 'Mar', 3: 'Mer', 4: 'Jeu', 5: 'Ven', 6: 'Sam', 7: 'Dim' };
 
 function parseISO(value) {
   const [y, m, d] = value.split('-').map(Number);
@@ -97,6 +107,13 @@ function taskDueLabel(task) {
   const date = parseISO(task.dueDate);
   return `${capitalize(shortWeekday.format(date).replace('.', ''))} ${date.getDate()}${task.dueTime ? ` · ${task.dueTime}` : ''}`;
 }
+function weekdayNumber(date = new Date()) { const day = date.getDay(); return day === 0 ? 7 : day; }
+function routineIsScheduled(routine, date = new Date()) { return routine.active !== false && Array.isArray(routine.weekdays) && routine.weekdays.includes(weekdayNumber(date)); }
+function routineIsCompleted(data, routineId, iso = toISO(new Date())) { return (data.routineCompletions || []).some((item) => item.routineId === routineId && item.date === iso); }
+function routineResponsible(data, routine) { return routine.responsibleMemberId ? memberById(data, routine.responsibleMemberId) : null; }
+function shoppingOpenItems(data) { return (data.shoppingItems || []).filter((item) => !item.checked); }
+function shoppingCategory(item) { return SHOPPING_CATEGORY_META[item.category] || SHOPPING_CATEGORY_META.other; }
+
 function birthdayMembersForDate(data, iso) {
   const md = iso.slice(5);
   return data.members.filter((member) => member.birthday && member.birthday.slice(5) === md);
@@ -117,7 +134,11 @@ function render() {
   const data = store.getState();
   renderHeader(data);
   renderMemberFilter(data);
+  renderFamilyFeed(data);
+  renderHomeTools(data);
   renderTasksHome(data);
+  renderShoppingDialog(data);
+  renderRoutinesDialog(data);
   renderDayRibbon(data);
   renderTimeline(data);
   renderInsights(data);
@@ -152,8 +173,11 @@ function renderHeader(data) {
 
   const perMember = data.members.map((member) => ({ member, count: todayEvents.filter((event) => event.memberIds.includes(member.id)).length }));
   const pendingTasksToday = (data.tasks || []).filter((task) => task.status !== 'done' && task.dueDate <= todayIso).length;
+  const routinesToday = (data.routines || []).filter((routine) => routineIsScheduled(routine, today) && !routineIsCompleted(data, routine.id, todayIso)).length;
+  const shoppingCount = shoppingOpenItems(data).length;
   const memberSummary = perMember.map(({ member, count: memberCount }) => `${memberDisplayName(member)} : ${memberCount ? `${memberCount} prévu${memberCount > 1 ? 's' : ''}` : 'libre'}`).join(' · ');
-  $('#heroSummary').textContent = `${memberSummary}${pendingTasksToday ? ` · ${pendingTasksToday} tâche${pendingTasksToday > 1 ? 's' : ''} à faire` : ''}`;
+  const extras = [pendingTasksToday ? `${pendingTasksToday} tâche${pendingTasksToday > 1 ? 's' : ''}` : '', routinesToday ? `${routinesToday} routine${routinesToday > 1 ? 's' : ''}` : '', shoppingCount ? `${shoppingCount} article${shoppingCount > 1 ? 's' : ''} à acheter` : ''].filter(Boolean);
+  $('#heroSummary').textContent = `${memberSummary}${extras.length ? ` · ${extras.join(' · ')}` : ''}`;
 
   const nextEvent = nextUpcomingEvent(data);
   $('#heroNextMoment').textContent = nextEvent ? `Prochain : ${nextEvent.title} · ${nextEvent.allDay ? 'journée' : nextEvent.time}` : 'Aucun prochain rendez-vous';
@@ -169,6 +193,102 @@ function renderMemberFilter(data) {
       ${renderAvatar(member)}${escapeHTML(memberDisplayName(member))}
     </button>`).join('');
   $('#memberFilter').innerHTML = all + members;
+}
+
+function renderHomeTools(data) {
+  const openCount = shoppingOpenItems(data).length;
+  const todayIso = toISO(new Date());
+  const todayRoutines = (data.routines || []).filter((routine) => routineIsScheduled(routine));
+  const routinesLeft = todayRoutines.filter((routine) => !routineIsCompleted(data, routine.id, todayIso)).length;
+  $('#shoppingShortcutCount').textContent = openCount ? `${openCount} à acheter` : 'Liste vide';
+  $('#routineShortcutCount').textContent = todayRoutines.length ? `${routinesLeft} restante${routinesLeft > 1 ? 's' : ''} aujourd’hui` : 'Aucune aujourd’hui';
+}
+
+function buildFamilyFeed(data) {
+  const today = new Date();
+  const todayIso = toISO(today);
+  const items = [];
+  for (const member of birthdayMembersForDate(data, todayIso)) {
+    items.push({ type: 'birthday', sort: '00:00', title: `Anniversaire de ${memberDisplayName(member)}`, subtitle: 'Une journée à célébrer 🎂', member });
+  }
+  for (const event of eventsForDate(data, todayIso, 'all')) {
+    const responsible = event.responsibleMemberId ? memberById(data, event.responsibleMemberId) : null;
+    items.push({ type: 'event', sort: event.allDay ? '00:10' : event.time, title: event.title, subtitle: `${event.allDay ? 'Toute la journée' : event.time}${responsible ? ` · ${memberDisplayName(responsible)} s’en occupe` : ''}`, event });
+  }
+  for (const task of (data.tasks || []).filter((task) => task.status !== 'done' && task.dueDate <= todayIso)) {
+    const responsible = taskResponsible(data, task);
+    items.push({ type: 'task', sort: task.dueDate < todayIso ? '00:05' : (task.dueTime || '19:00'), title: task.title, subtitle: `${task.dueDate < todayIso ? 'En retard' : task.dueTime || 'À faire aujourd’hui'}${responsible ? ` · ${memberDisplayName(responsible)}` : ''}`, task });
+  }
+  for (const routine of (data.routines || []).filter((routine) => routineIsScheduled(routine, today))) {
+    const done = routineIsCompleted(data, routine.id, todayIso);
+    const responsible = routineResponsible(data, routine);
+    items.push({ type: 'routine', sort: routine.time || '18:30', title: routine.title, subtitle: `${done ? 'Terminée' : routine.time || 'Routine du jour'}${responsible ? ` · ${memberDisplayName(responsible)}` : ''}`, routine, done });
+  }
+  const shoppingCount = shoppingOpenItems(data).length;
+  if (shoppingCount) items.push({ type: 'shopping', sort: '23:55', title: 'Liste de courses', subtitle: `${shoppingCount} article${shoppingCount > 1 ? 's' : ''} encore à acheter` });
+  return items.sort((a,b) => a.sort.localeCompare(b.sort));
+}
+
+function renderFamilyFeed(data) {
+  const items = buildFamilyFeed(data);
+  $('#familyFeedCount').textContent = items.length ? `${items.length} repère${items.length > 1 ? 's' : ''}` : 'Journée légère';
+  $('#familyFeedList').innerHTML = items.length ? items.slice(0, 7).map((item) => {
+    const iconName = item.type === 'event' ? 'calendar' : item.type === 'task' ? 'clipboard' : item.type === 'routine' ? 'repeat' : item.type === 'shopping' ? 'cart' : 'heart';
+    const action = item.type === 'event' ? `data-edit-event="${item.event.id}"` : item.type === 'task' ? `data-edit-task="${item.task.id}"` : item.type === 'routine' ? `data-toggle-routine="${item.routine.id}"` : item.type === 'shopping' ? 'data-open-shopping' : '';
+    return `<button class="family-feed-item tap type-${item.type} ${item.done ? 'is-done' : ''}" type="button" ${action}>
+      <span class="family-feed-icon">${icon(iconName)}</span>
+      <span class="family-feed-copy"><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(item.subtitle)}</small></span>
+      <span class="family-feed-arrow">${item.type === 'routine' ? (item.done ? icon('check') : icon('circle-check')) : icon('chevron-right')}</span>
+    </button>`;
+  }).join('') : `<div class="family-feed-empty"><span>${icon('sparkles')}</span><div><strong>Rien ne presse aujourd’hui.</strong><p>Profitez de ce temps libre en famille.</p></div></div>`;
+}
+
+function shoppingItemCard(item) {
+  const category = shoppingCategory(item);
+  return `<article class="shopping-item ${item.checked ? 'is-checked' : ''}">
+    <button class="shopping-check tap" type="button" data-toggle-shopping="${item.id}" aria-label="${item.checked ? 'Remettre' : 'Cocher'} ${escapeHTML(item.name)}">${item.checked ? icon('check') : ''}</button>
+    <span class="shopping-category-icon">${category.icon}</span>
+    <div class="shopping-item-copy"><strong>${escapeHTML(item.name)}</strong><small>${item.quantity ? `${escapeHTML(item.quantity)} · ` : ''}${escapeHTML(category.label)}</small></div>
+    <button class="shopping-delete tap" type="button" data-delete-shopping="${item.id}" aria-label="Supprimer ${escapeHTML(item.name)}">${icon('trash')}</button>
+  </article>`;
+}
+
+function renderShoppingDialog(data = store.getState()) {
+  const all = data.shoppingItems || [];
+  const openItems = all.filter((item) => !item.checked);
+  const checked = all.filter((item) => item.checked);
+  $$('[data-shopping-filter]').forEach((button) => button.classList.toggle('is-active', button.dataset.shoppingFilter === state.shoppingFilter));
+  $('#shoppingDialogCount').textContent = `${openItems.length} article${openItems.length > 1 ? 's' : ''} à acheter`;
+  const items = state.shoppingFilter === 'checked' ? checked : openItems;
+  $('#shoppingList').innerHTML = items.length ? items.map(shoppingItemCard).join('') : `<div class="empty-state"><strong>${state.shoppingFilter === 'checked' ? 'Rien de coché.' : 'La liste est vide.'}</strong><p>${state.shoppingFilter === 'checked' ? 'Les articles pris apparaîtront ici.' : 'Ajoutez ce qu’il manque en quelques secondes.'}</p></div>`;
+  $('#clearCheckedShoppingButton').hidden = checked.length === 0;
+}
+
+function routineDaysLabel(routine) {
+  const days = routine.weekdays || [];
+  if (days.length === 7) return 'Tous les jours';
+  if ([1,2,3,4,5].every((day) => days.includes(day)) && days.length === 5) return 'Du lundi au vendredi';
+  return days.map((day) => WEEKDAY_LABELS[day]).filter(Boolean).join(' · ') || 'Aucun jour';
+}
+
+function routineCard(routine, data) {
+  const todayIso = toISO(new Date());
+  const scheduledToday = routineIsScheduled(routine);
+  const done = scheduledToday && routineIsCompleted(data, routine.id, todayIso);
+  const responsible = routineResponsible(data, routine);
+  return `<article class="routine-card ${!routine.active ? 'is-paused' : ''} ${done ? 'is-done' : ''}">
+    <button class="routine-check tap" type="button" data-toggle-routine="${routine.id}" ${scheduledToday ? '' : 'disabled'} aria-label="${done ? 'Rouvrir' : 'Terminer'} ${escapeHTML(routine.title)}">${done ? icon('check') : icon('repeat')}</button>
+    <div class="routine-card-copy"><strong>${escapeHTML(routine.title)}</strong><small>${escapeHTML(routineDaysLabel(routine))}${routine.time ? ` · ${routine.time}` : ''}${responsible ? ` · ${escapeHTML(memberDisplayName(responsible))}` : ''}</small></div>
+    <button class="routine-edit tap" type="button" data-edit-routine="${routine.id}" aria-label="Modifier ${escapeHTML(routine.title)}">${icon('more')}</button>
+  </article>`;
+}
+
+function renderRoutinesDialog(data = store.getState()) {
+  const routines = data.routines || [];
+  $$('[data-routine-filter]').forEach((button) => button.classList.toggle('is-active', button.dataset.routineFilter === state.routineFilter));
+  const visible = state.routineFilter === 'today' ? routines.filter((routine) => routineIsScheduled(routine)) : routines;
+  $('#routinesDialogCount').textContent = routines.length ? `${routines.length} routine${routines.length > 1 ? 's' : ''}` : 'Aucune routine';
+  $('#routinesList').innerHTML = visible.length ? visible.map((routine) => routineCard(routine, data)).join('') : `<div class="empty-state"><strong>${state.routineFilter === 'today' ? 'Aucune routine aujourd’hui.' : 'Aucune routine créée.'}</strong><p>Les habitudes familiales apparaîtront ici automatiquement.</p><button class="primary-button tap" data-open-routine>${icon('plus')}Créer une routine</button></div>`;
 }
 
 function taskCard(task, data, compact = false) {
@@ -464,6 +584,7 @@ function renderDialogMembers(data) {
   $('#dialogMemberPicker').innerHTML = data.members.map((member, index) => `<label class="member-check"><input type="checkbox" name="memberIds" value="${member.id}" ${index === 0 ? 'checked' : ''}><span>${renderAvatar(member, { className: 'avatar' })}${escapeHTML(memberDisplayName(member))}</span></label>`).join('');
   $('#responsibleMemberSelect').innerHTML = `<option value="">Pas de responsable précis</option>` + data.members.map((member) => `<option value="${member.id}">${escapeHTML(memberDisplayName(member))}</option>`).join('');
   $('#taskResponsibleMemberSelect').innerHTML = `<option value="">Toute la famille</option>` + data.members.map((member) => `<option value="${member.id}">${escapeHTML(memberDisplayName(member))}</option>`).join('');
+  $('#routineResponsibleMemberSelect').innerHTML = `<option value="">Toute la famille</option>` + data.members.map((member) => `<option value="${member.id}">${escapeHTML(memberDisplayName(member))}</option>`).join('');
 }
 
 function switchView(view) {
@@ -709,6 +830,96 @@ function deleteCurrentTask() {
   store.deleteTask(id);
   closeTaskDialog();
   showToast('Tâche supprimée.');
+}
+
+function openShoppingDialog() {
+  renderShoppingDialog();
+  $('#shoppingDialog').showModal();
+  requestAnimationFrame(() => $('#shoppingQuickName').focus());
+  vibration();
+}
+function closeShoppingDialog() { if ($('#shoppingDialog').open) $('#shoppingDialog').close(); }
+
+function handleShoppingSubmit(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const name = String(form.get('name') || '').trim();
+  if (!name) return;
+  store.addShoppingItem({ name, quantity: String(form.get('quantity') || '').trim(), category: String(form.get('category') || 'other') });
+  event.currentTarget.reset();
+  event.currentTarget.elements.category.value = 'grocery';
+  renderShoppingDialog();
+  showToast('Ajouté à la liste de courses.');
+  requestAnimationFrame(() => $('#shoppingQuickName').focus());
+}
+
+function openRoutinesDialog() {
+  renderRoutinesDialog();
+  $('#routinesDialog').showModal();
+  vibration();
+}
+function closeRoutinesDialog() { if ($('#routinesDialog').open) $('#routinesDialog').close(); }
+
+function openRoutineDialog(routineId = null) {
+  const data = store.getState();
+  const form = $('#routineForm');
+  form.reset();
+  renderDialogMembers(data);
+  form.elements.routineId.value = '';
+  form.elements.active.checked = true;
+  form.querySelectorAll('input[name="weekdays"]').forEach((input) => { input.checked = [1,2,3,4,5].includes(Number(input.value)); });
+  $('#routineDialogTitle').textContent = 'Créer une routine';
+  $('#routineSubmitButton').innerHTML = `Créer la routine ${icon('check')}`;
+  $('#deleteRoutineButton').hidden = true;
+  if (routineId) {
+    const routine = data.routines.find((item) => item.id === routineId);
+    if (!routine) return;
+    form.elements.routineId.value = routine.id;
+    form.elements.title.value = routine.title;
+    form.elements.time.value = routine.time || '';
+    form.elements.responsibleMemberId.value = routine.responsibleMemberId || '';
+    form.elements.notes.value = routine.notes || '';
+    form.elements.active.checked = routine.active !== false;
+    form.querySelectorAll('input[name="weekdays"]').forEach((input) => { input.checked = routine.weekdays.includes(Number(input.value)); });
+    $('#routineDialogTitle').textContent = 'Modifier la routine';
+    $('#routineSubmitButton').innerHTML = `Enregistrer ${icon('check')}`;
+    $('#deleteRoutineButton').hidden = false;
+  }
+  closeRoutinesDialog();
+  $('#routineDialog').showModal();
+  requestAnimationFrame(() => form.elements.title.focus());
+  vibration();
+}
+function closeRoutineDialog() { if ($('#routineDialog').open) $('#routineDialog').close(); }
+
+function handleRoutineSubmit(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const id = String(formData.get('routineId') || '');
+  const weekdays = formData.getAll('weekdays').map(Number);
+  if (!weekdays.length) { showToast('Choisis au moins un jour.'); return; }
+  const payload = {
+    title: String(formData.get('title') || '').trim(),
+    weekdays,
+    time: String(formData.get('time') || ''),
+    responsibleMemberId: String(formData.get('responsibleMemberId') || ''),
+    notes: String(formData.get('notes') || '').trim(),
+    active: formData.get('active') === 'on'
+  };
+  if (!payload.title) return;
+  if (id) { store.updateRoutine(id, payload); showToast('Routine mise à jour.'); }
+  else { store.addRoutine(payload); showToast('Routine créée.'); }
+  closeRoutineDialog();
+  renderRoutinesDialog();
+}
+
+function deleteCurrentRoutine() {
+  const id = $('#routineForm').elements.routineId.value;
+  const routine = store.getState().routines.find((item) => item.id === id);
+  if (!routine || !confirm(`Supprimer la routine « ${routine.title} » ?`)) return;
+  store.deleteRoutine(id);
+  closeRoutineDialog();
+  showToast('Routine supprimée.');
 }
 
 function urlBase64ToUint8Array(base64String) {
@@ -1294,7 +1505,12 @@ function setupEvents() {
     if (event.target.closest('[data-close-tasks]')) closeTasksDialog();
     if (event.target.closest('[data-close-task-dialog]')) closeTaskDialog();
     if (event.target.closest('[data-close-notifications]')) closeNotificationDialog();
+    if (event.target.closest('[data-close-shopping]')) closeShoppingDialog();
+    if (event.target.closest('[data-close-routines]')) closeRoutinesDialog();
+    if (event.target.closest('[data-close-routine-dialog]')) closeRoutineDialog();
     if (event.target.closest('[data-open-task]')) openTaskDialog();
+    if (event.target.closest('[data-open-shopping]')) openShoppingDialog();
+    if (event.target.closest('[data-open-routine]')) openRoutineDialog();
 
     const authModeButton = event.target.closest('[data-auth-mode]');
     if (authModeButton) showAuthMode(authModeButton.dataset.authMode);
@@ -1316,6 +1532,35 @@ function setupEvents() {
 
     const taskFilterButton = event.target.closest('[data-task-filter]');
     if (taskFilterButton) { state.taskFilter = taskFilterButton.dataset.taskFilter; renderTasksDialog(); }
+
+    const shoppingToggle = event.target.closest('[data-toggle-shopping]');
+    if (shoppingToggle) {
+      const item = store.getState().shoppingItems.find((entry) => entry.id === shoppingToggle.dataset.toggleShopping);
+      if (item) { store.toggleShoppingItem(item.id, !item.checked); vibration(); renderShoppingDialog(); }
+    }
+    const shoppingDelete = event.target.closest('[data-delete-shopping]');
+    if (shoppingDelete) {
+      const item = store.getState().shoppingItems.find((entry) => entry.id === shoppingDelete.dataset.deleteShopping);
+      if (item && confirm(`Retirer « ${item.name} » de la liste ?`)) { store.deleteShoppingItem(item.id); renderShoppingDialog(); }
+    }
+    const shoppingFilter = event.target.closest('[data-shopping-filter]');
+    if (shoppingFilter) { state.shoppingFilter = shoppingFilter.dataset.shoppingFilter; renderShoppingDialog(); }
+
+    const routineToggle = event.target.closest('[data-toggle-routine]');
+    if (routineToggle) {
+      const data = store.getState();
+      const routine = data.routines.find((item) => item.id === routineToggle.dataset.toggleRoutine);
+      if (routine && routineIsScheduled(routine)) {
+        const iso = toISO(new Date());
+        store.toggleRoutineCompletion(routine.id, iso, !routineIsCompleted(data, routine.id, iso));
+        vibration();
+        render();
+      }
+    }
+    const routineEdit = event.target.closest('[data-edit-routine]');
+    if (routineEdit) openRoutineDialog(routineEdit.dataset.editRoutine);
+    const routineFilter = event.target.closest('[data-routine-filter]');
+    if (routineFilter) { state.routineFilter = routineFilter.dataset.routineFilter; renderRoutinesDialog(); }
 
     const modeButton = event.target.closest('[data-agenda-mode]');
     if (modeButton) {
@@ -1339,6 +1584,13 @@ function setupEvents() {
   $('#addTaskFromListButton').addEventListener('click', () => openTaskDialog());
   $('#taskForm').addEventListener('submit', handleTaskSubmit);
   $('#deleteTaskButton').addEventListener('click', deleteCurrentTask);
+  $('#shoppingShortcutButton').addEventListener('click', openShoppingDialog);
+  $('#routineShortcutButton').addEventListener('click', openRoutinesDialog);
+  $('#shoppingForm').addEventListener('submit', handleShoppingSubmit);
+  $('#clearCheckedShoppingButton').addEventListener('click', () => { if (confirm('Retirer tous les articles déjà pris ?')) { store.clearCheckedShoppingItems(); renderShoppingDialog(); showToast('Articles cochés retirés.'); } });
+  $('#addRoutineButton').addEventListener('click', () => openRoutineDialog());
+  $('#routineForm').addEventListener('submit', handleRoutineSubmit);
+  $('#deleteRoutineButton').addEventListener('click', deleteCurrentRoutine);
   $('#goTodayButton').addEventListener('click', () => selectDate(toISO(new Date())));
   $('#agendaTodayButton').addEventListener('click', () => { selectDate(toISO(new Date())); switchView('agenda'); });
   $('#eventForm').addEventListener('submit', handleEventSubmit);
@@ -1372,7 +1624,7 @@ function setupEvents() {
   $('#resetButton').addEventListener('click', () => {
     const user = store.getCurrentUser();
     if (user?.role !== 'admin') { showToast('Seul Nacer peut réinitialiser l’agenda.'); return; }
-    if (confirm('Supprimer tous les événements et toutes les tâches, puis restaurer uniquement Nacer, Romane et Chacha ?')) {
+    if (confirm('Supprimer événements, tâches, courses et routines, puis restaurer uniquement les profils familiaux ?')) {
       store.reset();
       state.activeMember = 'all';
       state.selectedDate = toISO(new Date());
@@ -1387,6 +1639,9 @@ function setupEvents() {
   $('#tasksDialog').addEventListener('click', (event) => { if (event.target === $('#tasksDialog')) closeTasksDialog(); });
   $('#taskDialog').addEventListener('click', (event) => { if (event.target === $('#taskDialog')) closeTaskDialog(); });
   $('#notificationDialog').addEventListener('click', (event) => { if (event.target === $('#notificationDialog')) closeNotificationDialog(); });
+  $('#shoppingDialog').addEventListener('click', (event) => { if (event.target === $('#shoppingDialog')) closeShoppingDialog(); });
+  $('#routinesDialog').addEventListener('click', (event) => { if (event.target === $('#routinesDialog')) closeRoutinesDialog(); });
+  $('#routineDialog').addEventListener('click', (event) => { if (event.target === $('#routineDialog')) closeRoutineDialog(); });
   $('#loginForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.login(payload)); });
   $('#setupForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.setup(payload)); });
   $('#inviteForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.acceptInvite(payload)); });

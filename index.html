@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=3.4.0">
+  <link rel="stylesheet" href="styles.css?v=3.5.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -45,6 +45,8 @@
     <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
     <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.7 4 3 9 3s9-1.3 9-3V5M3 11v6c0 1.7 4 3 9 3s9-1.3 9-3v-6"/></symbol>
     <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 10h6M9 14h6"/></symbol>
+    <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M3 4h2l2.3 10.2a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 1.9-1.4L22 8H7"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></symbol>
     <symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.06.06-2.76 2.76-.06-.06a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.65V21h-3.9v-.09A1.8 1.8 0 0 0 8.9 19.3a1.8 1.8 0 0 0-2 .36l-.06.06-2.76-2.76.06-.06a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2.85 13.8H2.8V9.9h.09A1.8 1.8 0 0 0 4.5 8.8a1.8 1.8 0 0 0-.36-2l-.06-.06L6.84 4l.06.06a1.8 1.8 0 0 0 2 .36A1.8 1.8 0 0 0 10 2.8V2.7h3.9v.09A1.8 1.8 0 0 0 15 4.4a1.8 1.8 0 0 0 2-.36l.06-.06 2.76 2.76-.06.06a1.8 1.8 0 0 0-.36 2 1.8 1.8 0 0 0 1.65 1.1h.09v3.9h-.09A1.8 1.8 0 0 0 19.4 15Z"/></symbol>
   </svg>
@@ -207,6 +209,27 @@
             <span class="quick-action-icon"><svg><use href="#i-user"></use></svg></span>
             <div><strong>Mon profil</strong><small>Photo et partage</small></div>
           </button>
+        </section>
+
+        <section class="family-tools reveal" aria-label="Outils du quotidien">
+          <button class="family-tool-card tap" id="shoppingShortcutButton" type="button">
+            <span class="family-tool-icon"><svg><use href="#i-cart"></use></svg></span>
+            <span class="family-tool-copy"><strong>Courses</strong><small id="shoppingShortcutCount">Liste vide</small></span>
+            <svg class="family-tool-arrow"><use href="#i-chevron-right"></use></svg>
+          </button>
+          <button class="family-tool-card tap" id="routineShortcutButton" type="button">
+            <span class="family-tool-icon"><svg><use href="#i-repeat"></use></svg></span>
+            <span class="family-tool-copy"><strong>Routines</strong><small id="routineShortcutCount">Aucune aujourd’hui</small></span>
+            <svg class="family-tool-arrow"><use href="#i-chevron-right"></use></svg>
+          </button>
+        </section>
+
+        <section class="family-feed-card reveal" aria-labelledby="familyFeedTitle">
+          <header class="family-feed-header">
+            <div><p class="eyebrow">Fil de la famille</p><h2 id="familyFeedTitle">Tout ce qui compte, au même endroit.</h2></div>
+            <span class="family-feed-count" id="familyFeedCount">Journée légère</span>
+          </header>
+          <div class="family-feed-list" id="familyFeedList"></div>
         </section>
 
         <section class="tasks-home-card reveal" aria-labelledby="tasksHomeTitle">
@@ -454,6 +477,70 @@
     </form>
   </dialog>
 
+  <dialog class="account-dialog hub-dialog" id="shoppingDialog" aria-labelledby="shoppingDialogTitle">
+    <section class="account-sheet hub-sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div><p class="eyebrow">Liste partagée</p><h2 id="shoppingDialogTitle">Courses</h2><small class="hub-count" id="shoppingDialogCount">0 article à acheter</small></div>
+        <button type="button" class="icon-button tap" data-close-shopping aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
+      </header>
+      <form class="shopping-quick-form" id="shoppingForm">
+        <label class="field shopping-name-field"><span>Article</span><input id="shoppingQuickName" name="name" maxlength="120" required placeholder="Ex. Lait"></label>
+        <label class="field"><span>Quantité</span><input name="quantity" maxlength="30" placeholder="Ex. x2"></label>
+        <label class="field"><span>Catégorie</span><select name="category"><option value="grocery">Épicerie</option><option value="fresh">Frais</option><option value="household">Maison</option><option value="hygiene">Hygiène</option><option value="other">Autre</option></select></label>
+        <button class="primary-button shopping-add-button tap" type="submit"><svg><use href="#i-plus"></use></svg>Ajouter</button>
+      </form>
+      <div class="hub-toolbar">
+        <div class="segmented-control hub-segmented" role="group" aria-label="Filtrer la liste de courses">
+          <button class="is-active tap" data-shopping-filter="open">À acheter</button>
+          <button class="tap" data-shopping-filter="checked">Déjà pris</button>
+        </div>
+        <button class="danger-text-button tap" id="clearCheckedShoppingButton" type="button"><svg><use href="#i-trash"></use></svg>Vider cochés</button>
+      </div>
+      <div class="shopping-list" id="shoppingList"></div>
+    </section>
+  </dialog>
+
+  <dialog class="account-dialog hub-dialog" id="routinesDialog" aria-labelledby="routinesDialogTitle">
+    <section class="account-sheet hub-sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div><p class="eyebrow">Habitudes familiales</p><h2 id="routinesDialogTitle">Routines</h2><small class="hub-count" id="routinesDialogCount">Aucune routine</small></div>
+        <button type="button" class="icon-button tap" data-close-routines aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
+      </header>
+      <div class="hub-toolbar">
+        <div class="segmented-control hub-segmented" role="group" aria-label="Filtrer les routines">
+          <button class="is-active tap" data-routine-filter="today">Aujourd’hui</button>
+          <button class="tap" data-routine-filter="all">Toutes</button>
+        </div>
+        <button class="secondary-button tap" id="addRoutineButton" type="button"><svg><use href="#i-plus"></use></svg>Nouvelle</button>
+      </div>
+      <div class="routines-list" id="routinesList"></div>
+    </section>
+  </dialog>
+
+  <dialog class="event-dialog" id="routineDialog" aria-labelledby="routineDialogTitle">
+    <form method="dialog" id="routineForm" class="event-sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div><p class="eyebrow">Habitude récurrente</p><h2 id="routineDialogTitle">Créer une routine</h2></div>
+        <button type="button" class="icon-button tap" data-close-routine-dialog aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
+      </header>
+      <input type="hidden" name="routineId">
+      <div class="form-grid">
+        <label class="field field-wide"><span>Routine</span><input name="title" maxlength="120" required placeholder="Ex. Préparer le sac d’école"></label>
+        <fieldset class="field field-wide routine-days-field"><legend>Quels jours ?</legend><div class="routine-day-picker">
+          <label><input type="checkbox" name="weekdays" value="1"><span>Lun</span></label><label><input type="checkbox" name="weekdays" value="2"><span>Mar</span></label><label><input type="checkbox" name="weekdays" value="3"><span>Mer</span></label><label><input type="checkbox" name="weekdays" value="4"><span>Jeu</span></label><label><input type="checkbox" name="weekdays" value="5"><span>Ven</span></label><label><input type="checkbox" name="weekdays" value="6"><span>Sam</span></label><label><input type="checkbox" name="weekdays" value="7"><span>Dim</span></label>
+        </div></fieldset>
+        <label class="field"><span>Heure</span><input type="time" name="time"></label>
+        <label class="field"><span>Responsable</span><select name="responsibleMemberId" id="routineResponsibleMemberSelect"><option value="">Toute la famille</option></select></label>
+        <label class="field field-wide"><span>Note</span><textarea name="notes" rows="3" maxlength="300" placeholder="Une précision utile…"></textarea></label>
+        <label class="notification-option routine-active-field field-wide"><div><strong>Routine active</strong><span>Elle apparaît automatiquement les jours choisis.</span></div><span class="switch"><input type="checkbox" name="active" checked><span></span></span></label>
+      </div>
+      <div class="dialog-actions"><button class="danger-text-button tap" type="button" id="deleteRoutineButton" hidden><svg><use href="#i-trash"></use></svg>Supprimer</button><button class="primary-button submit-button tap" id="routineSubmitButton" type="submit">Créer la routine <svg><use href="#i-check"></use></svg></button></div>
+    </form>
+  </dialog>
+
   <dialog class="account-dialog notification-dialog" id="notificationDialog" aria-labelledby="notificationDialogTitle">
     <section class="account-sheet notification-sheet">
       <div class="sheet-handle"></div>
@@ -560,6 +647,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=3.4.0"></script>
+  <script type="module" src="js/app.js?v=3.5.0"></script>
 </body>
 </html>

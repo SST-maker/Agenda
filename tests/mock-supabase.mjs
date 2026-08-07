@@ -10,7 +10,13 @@ export const mockDb = {
     { id:'33333333-3333-4333-8333-333333333333', family_id:familyId, name:'Romane', nickname:null, role_label:'Maman', initials:'RO', color:'#C79A5C', linked_user_id:null, sort_order:20 },
     { id:'44444444-4444-4444-8444-444444444444', family_id:familyId, name:'Chacha', nickname:null, role_label:'Enfant', initials:'CH', color:'#739A87', linked_user_id:null, sort_order:30 }
   ],
-  events: []
+  events: [],
+  tasks: [],
+  shoppingItems: [],
+  routines: [],
+  routineCompletions: [],
+  notificationPreferences: null,
+  pushSubscriptions: []
 };
 
 class Query {
@@ -21,6 +27,7 @@ class Query {
   maybeSingle() { return Promise.resolve(this.run()); }
   single() { return Promise.resolve(this.run()); }
   upsert(value) { this.action = 'upsert'; this.payload = value; return Promise.resolve(this.run()); }
+  insert(value) { this.action = 'insert'; this.payload = value; return Promise.resolve(this.run()); }
   update(value) { this.action = 'update'; this.payload = value; return this; }
   delete() { this.action = 'delete'; return this; }
   then(resolve, reject) { return Promise.resolve(this.run()).then(resolve, reject); }
@@ -32,6 +39,12 @@ class Query {
       if (this.table === 'families') return { data: mockDb.family, error: null };
       if (this.table === 'members') return { data: structuredClone(mockDb.members), error: null };
       if (this.table === 'events') return { data: structuredClone(mockDb.events), error: null };
+      if (this.table === 'tasks') return { data: structuredClone(mockDb.tasks), error: null };
+      if (this.table === 'shopping_items') return { data: structuredClone(mockDb.shoppingItems), error: null };
+      if (this.table === 'routines') return { data: structuredClone(mockDb.routines), error: null };
+      if (this.table === 'routine_completions') return { data: structuredClone(mockDb.routineCompletions), error: null };
+      if (this.table === 'notification_preferences') return { data: mockDb.notificationPreferences ? structuredClone(mockDb.notificationPreferences) : null, error: null };
+      if (this.table === 'push_subscriptions') return { data: structuredClone(mockDb.pushSubscriptions), error: null };
     }
     if (this.table === 'events' && this.action === 'upsert') {
       const rows = Array.isArray(this.payload) ? this.payload : [this.payload];
@@ -49,6 +62,98 @@ class Query {
       if (id) mockDb.events = mockDb.events.filter((event) => event.id !== id);
       else if (seriesId) mockDb.events = mockDb.events.filter((event) => event.series_id !== seriesId);
       else mockDb.events = [];
+      return { data: null, error: null };
+    }
+    if (this.table === 'tasks' && this.action === 'upsert') {
+      const rows = Array.isArray(this.payload) ? this.payload : [this.payload];
+      for (const payload of rows) {
+        const index = mockDb.tasks.findIndex((task) => task.id === payload.id);
+        const row = { ...payload, updated_at: new Date().toISOString() };
+        if (index >= 0) mockDb.tasks[index] = { ...mockDb.tasks[index], ...row };
+        else mockDb.tasks.push(row);
+      }
+      return { data: null, error: null };
+    }
+    if (this.table === 'tasks' && this.action === 'delete') {
+      const id = this.filters.find(([key]) => key === 'id')?.[1];
+      if (id) mockDb.tasks = mockDb.tasks.filter((task) => task.id !== id);
+      else mockDb.tasks = [];
+      return { data: null, error: null };
+    }
+    if (this.table === 'shopping_items' && this.action === 'upsert') {
+      const rows = Array.isArray(this.payload) ? this.payload : [this.payload];
+      for (const payload of rows) {
+        const index = mockDb.shoppingItems.findIndex((item) => item.id === payload.id);
+        const row = { ...payload, created_at: payload.created_at || new Date().toISOString(), updated_at: new Date().toISOString() };
+        if (index >= 0) mockDb.shoppingItems[index] = { ...mockDb.shoppingItems[index], ...row };
+        else mockDb.shoppingItems.push(row);
+      }
+      return { data: null, error: null };
+    }
+    if (this.table === 'shopping_items' && this.action === 'delete') {
+      const id = this.filters.find(([key]) => key === 'id')?.[1];
+      const checked = this.filters.find(([key]) => key === 'checked')?.[1];
+      if (id) mockDb.shoppingItems = mockDb.shoppingItems.filter((item) => item.id !== id);
+      else if (checked === true) mockDb.shoppingItems = mockDb.shoppingItems.filter((item) => !item.checked);
+      else mockDb.shoppingItems = [];
+      return { data: null, error: null };
+    }
+    if (this.table === 'routines' && this.action === 'upsert') {
+      const rows = Array.isArray(this.payload) ? this.payload : [this.payload];
+      for (const payload of rows) {
+        const index = mockDb.routines.findIndex((item) => item.id === payload.id);
+        const row = { ...payload, updated_at: new Date().toISOString() };
+        if (index >= 0) mockDb.routines[index] = { ...mockDb.routines[index], ...row };
+        else mockDb.routines.push(row);
+      }
+      return { data: null, error: null };
+    }
+    if (this.table === 'routines' && this.action === 'delete') {
+      const id = this.filters.find(([key]) => key === 'id')?.[1];
+      if (id) {
+        mockDb.routines = mockDb.routines.filter((item) => item.id !== id);
+        mockDb.routineCompletions = mockDb.routineCompletions.filter((item) => item.routine_id !== id);
+      } else {
+        mockDb.routines = [];
+        mockDb.routineCompletions = [];
+      }
+      return { data: null, error: null };
+    }
+    if (this.table === 'routine_completions' && this.action === 'upsert') {
+      const payload = this.payload;
+      const index = mockDb.routineCompletions.findIndex((item) => item.routine_id === payload.routine_id && item.completion_date === payload.completion_date);
+      const row = { ...payload, created_at: new Date().toISOString() };
+      if (index >= 0) mockDb.routineCompletions[index] = row; else mockDb.routineCompletions.push(row);
+      return { data: null, error: null };
+    }
+    if (this.table === 'routine_completions' && this.action === 'delete') {
+      const routineId = this.filters.find(([key]) => key === 'routine_id')?.[1];
+      const date = this.filters.find(([key]) => key === 'completion_date')?.[1];
+      mockDb.routineCompletions = mockDb.routineCompletions.filter((item) => {
+        if (routineId && item.routine_id !== routineId) return true;
+        if (date && item.completion_date !== date) return true;
+        return false;
+      });
+      return { data: null, error: null };
+    }
+    if (this.table === 'notification_preferences' && this.action === 'upsert') {
+      mockDb.notificationPreferences = { ...this.payload, updated_at: new Date().toISOString() };
+      return { data: null, error: null };
+    }
+    if (this.table === 'push_subscriptions' && this.action === 'upsert') {
+      const index = mockDb.pushSubscriptions.findIndex((item) => item.endpoint === this.payload.endpoint);
+      const row = { id: this.payload.id || '77777777-7777-4777-8777-777777777777', ...this.payload };
+      if (index >= 0) mockDb.pushSubscriptions[index] = row; else mockDb.pushSubscriptions.push(row);
+      return { data: null, error: null };
+    }
+    if (this.table === 'push_subscriptions' && this.action === 'delete') {
+      const endpoint = this.filters.find(([key]) => key === 'endpoint')?.[1];
+      mockDb.pushSubscriptions = mockDb.pushSubscriptions.filter((item) => item.endpoint !== endpoint);
+      return { data: null, error: null };
+    }
+    if (this.table === 'push_subscriptions' && this.action === 'update') {
+      const id = this.filters.find(([key]) => key === 'id')?.[1];
+      mockDb.pushSubscriptions = mockDb.pushSubscriptions.map((item) => !id || item.id === id ? { ...item, ...this.payload } : item);
       return { data: null, error: null };
     }
     if (this.table === 'families' && this.action === 'update') {
