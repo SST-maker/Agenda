@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=4.2.0">
+  <link rel="stylesheet" href="styles.css?v=4.2.1">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -464,8 +464,22 @@
       <div class="form-grid">
         <label class="field field-wide"><span>Titre</span><input name="title" maxlength="80" required placeholder="Ex. Rendez-vous pédiatre"></label>
         <label class="field"><span>Date</span><input type="date" name="date" required></label>
-        <label class="field"><span>Heure</span><input type="time" name="time" required></label>
-        <label class="field"><span>Durée</span><select name="duration"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 h</option><option value="90">1 h 30</option><option value="120">2 h</option></select></label>
+        <label class="field"><span>Début</span><input type="time" name="time" required></label>
+        <label class="field"><span>Fin</span><input type="time" name="endTime" required></label>
+        <div class="duration-presets field-wide" id="durationPresets" aria-label="Durées rapides">
+          <span>Créneaux rapides</span>
+          <div>
+            <button type="button" class="duration-chip tap" data-duration-minutes="15">15 min</button>
+            <button type="button" class="duration-chip tap" data-duration-minutes="30">30 min</button>
+            <button type="button" class="duration-chip tap" data-duration-minutes="45">45 min</button>
+            <button type="button" class="duration-chip tap is-active" data-duration-minutes="60">1 h</button>
+            <button type="button" class="duration-chip tap" data-duration-minutes="90">1 h 30</button>
+            <button type="button" class="duration-chip tap" data-duration-minutes="120">2 h</button>
+            <button type="button" class="duration-chip tap" data-duration-minutes="180">3 h</button>
+            <button type="button" class="duration-chip tap" data-duration-minutes="240">4 h</button>
+          </div>
+          <small>Choisis un créneau rapide ou règle librement l’heure de fin</small>
+        </div>
         <label class="switch-field field-wide"><span><strong>Toute la journée</strong><small>Pour un anniversaire, des vacances ou une journée spéciale.</small></span><span class="switch"><input type="checkbox" name="allDay" id="allDayToggle"><span></span></span></label>
         <label class="field"><span>Répétition</span><select name="recurrence"><option value="none">Aucune</option><option value="daily">Tous les jours</option><option value="weekly">Chaque semaine</option><option value="monthly">Chaque mois</option><option value="yearly">Chaque année</option></select></label>
         <label class="field" id="recurrenceUntilField" hidden><span>Jusqu’au</span><input type="date" name="recurrenceUntil"></label>
@@ -850,6 +864,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=4.2.0"></script>
+  <script type="module" src="js/app.js?v=4.2.1"></script>
 </body>
 </html>

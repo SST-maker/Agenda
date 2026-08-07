@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.2.0';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.2.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.2.1';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.2.1';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -170,7 +170,7 @@ function getGreeting() {
   return 'Bonsoir';
 }
 
-const APP_VERSION = '4.2.0';
+const APP_VERSION = '4.2.1';
 const VERSION_SEEN_KEY = 'agenda-version-seen';
 let temporalTimer = 0;
 let previousOnlineState = navigator.onLine;
@@ -887,7 +887,7 @@ function eventCard(event, data) {
   return `<article class="event-card ${familyTogether ? 'is-family-together' : ''}" style="--event-color:${category.color}" data-event-id="${event.id}">
     <div class="event-top">
       <div>
-        <span class="event-time">${icon('clock')}${event.allDay ? 'Toute la journée' : `${event.time} · ${formatDuration(event.duration)}`}${event.seriesId ? ' · Récurrent' : ''}</span>
+        <span class="event-time">${icon('clock')}${event.allDay ? 'Toute la journée' : `${event.time}–${minutesToTime(timeToMinutesSafe(event.time) + Number(event.duration || 60))} · ${formatDuration(event.duration)}`}${event.seriesId ? ' · Récurrent' : ''}</span>
         <h3>${escapeHTML(event.title)}</h3>
       </div>
       <button class="event-menu tap" data-edit-event="${event.id}" aria-label="Modifier ${escapeHTML(event.title)}">${icon('more')}</button>
@@ -1154,6 +1154,38 @@ function moveWeek(direction) {
   render();
 }
 
+function timeToMinutesSafe(value) {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return 0;
+  return (Number(match[1]) * 60) + Number(match[2]);
+}
+
+function minutesToTime(totalMinutes) {
+  const normalized = ((Number(totalMinutes) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
+}
+
+function setEventEndFromDuration(durationMinutes = 60) {
+  const form = $('#eventForm');
+  if (!form?.elements?.time || !form?.elements?.endTime) return;
+  const start = timeToMinutesSafe(form.elements.time.value);
+  form.elements.endTime.value = minutesToTime(start + Math.max(1, Number(durationMinutes) || 60));
+  updateDurationPresetState(Math.max(1, Number(durationMinutes) || 60));
+}
+
+function durationFromEventTimes() {
+  const form = $('#eventForm');
+  const start = timeToMinutesSafe(form.elements.time.value);
+  const end = timeToMinutesSafe(form.elements.endTime.value);
+  return end - start;
+}
+
+function updateDurationPresetState(durationMinutes) {
+  document.querySelectorAll('[data-duration-minutes]').forEach((button) => {
+    button.classList.toggle('is-active', Number(button.dataset.durationMinutes) === Number(durationMinutes));
+  });
+}
+
 function openEventDialog(eventId = null) {
   const dialog = $('#eventDialog');
   const form = $('#eventForm');
@@ -1163,6 +1195,7 @@ function openEventDialog(eventId = null) {
   form.elements.eventId.value = '';
   form.elements.date.value = state.selectedDate;
   form.elements.time.value = new Date().toTimeString().slice(0, 5);
+  setEventEndFromDuration(60);
   form.elements.allDay.checked = false;
   form.elements.recurrence.value = 'none';
   form.elements.reminderMinutes.value = '60';
@@ -1182,7 +1215,8 @@ function openEventDialog(eventId = null) {
     form.elements.title.value = item.title;
     form.elements.date.value = item.date;
     form.elements.time.value = item.time;
-    form.elements.duration.value = String(item.duration);
+    form.elements.endTime.value = minutesToTime(timeToMinutesSafe(item.time) + Number(item.duration || 60));
+    updateDurationPresetState(Number(item.duration || 60));
     form.elements.category.value = item.category;
     form.elements.location.value = item.location || '';
     form.elements.notes.value = item.notes || '';
@@ -1209,12 +1243,16 @@ function closeEventDialog() { if ($('#eventDialog').open) $('#eventDialog').clos
 function toggleAllDayFields(allDay) {
   const form = $('#eventForm');
   form.elements.time.disabled = allDay;
-  form.elements.duration.disabled = allDay;
+  form.elements.endTime.disabled = allDay;
+  $('#durationPresets')?.toggleAttribute('hidden', allDay);
   if (allDay) {
     form.elements.time.value = '00:00';
-    form.elements.duration.value = '120';
+    form.elements.endTime.value = '23:59';
   } else if (form.elements.time.value === '00:00') {
     form.elements.time.value = new Date().toTimeString().slice(0, 5);
+    setEventEndFromDuration(60);
+  } else if (!form.elements.endTime.value) {
+    setEventEndFromDuration(60);
   }
 }
 
@@ -1252,11 +1290,13 @@ function handleEventSubmit(event) {
   const eventId = String(form.get('eventId') || '');
   const allDay = form.get('allDay') === 'on';
   const recurrenceRule = eventId ? 'none' : String(form.get('recurrence') || 'none');
+  const customDuration = allDay ? 1440 : durationFromEventTimes();
+  if (!allDay && customDuration <= 0) { showToast('L’heure de fin doit être après l’heure de début'); return; }
   const basePayload = {
     title: String(form.get('title')).trim(),
     date: String(form.get('date')),
     time: allDay ? '00:00' : String(form.get('time') || '00:00'),
-    duration: allDay ? 1440 : Number(form.get('duration')),
+    duration: customDuration,
     allDay,
     category: String(form.get('category')),
     location: String(form.get('location')).trim(),
@@ -2531,6 +2571,18 @@ function setupEvents() {
   $('#deleteCurrentEventButton').addEventListener('click', deleteCurrentEvent);
   $('#deleteSeriesButton').addEventListener('click', deleteCurrentSeries);
   $('#allDayToggle').addEventListener('change', (event) => toggleAllDayFields(event.target.checked));
+  $('#eventForm')?.elements?.time?.addEventListener('change', () => {
+    const currentDuration = Math.max(1, durationFromEventTimes() || 60);
+    setEventEndFromDuration(currentDuration);
+  });
+  $('#eventForm')?.elements?.endTime?.addEventListener('change', () => {
+    const duration = durationFromEventTimes();
+    updateDurationPresetState(duration);
+  });
+  document.querySelectorAll('[data-duration-minutes]').forEach((button) => button.addEventListener('click', () => {
+    setEventEndFromDuration(Number(button.dataset.durationMinutes));
+    vibration();
+  }));
   $('#eventForm').elements.recurrence.addEventListener('change', (event) => { $('#recurrenceUntilField').hidden = event.target.value === 'none'; });
   $('#quietModeToggle').addEventListener('change', (event) => { store.setSetting('quietMode', event.target.checked); showToast(event.target.checked ? 'Mode doux activé.' : 'Mode doux désactivé.'); });
   $('#protectMomentButton').addEventListener('click', () => { openEventDialog(); $('#eventForm').elements.title.value = 'Temps pour soi'; });

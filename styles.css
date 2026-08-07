@@ -2045,3 +2045,82 @@ html[data-theme="dark"] .tomorrow-glance-grid > div { background:rgba(237,226,20
 @media (prefers-reduced-motion: reduce) {
   #liveMomentButton[data-urgency="near"] { animation:none !important; }
 }
+
+
+/* v4.2.1 — Contexte sans scroll + créneaux libres */
+.context-strip {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  align-items:stretch;
+  gap:7px;
+  overflow:visible;
+  padding:2px 0 4px;
+}
+.context-chip {
+  width:100%;
+  min-width:0;
+  max-width:none;
+  min-height:42px;
+  padding:8px 9px;
+  justify-content:center;
+  border-radius:16px;
+  white-space:normal;
+  line-height:1.08;
+  text-align:center;
+}
+.context-chip > span:last-child {
+  min-width:0;
+  overflow:hidden;
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  text-overflow:ellipsis;
+}
+.duration-presets {
+  display:grid;
+  gap:8px;
+  padding:2px 0 4px;
+}
+.duration-presets > span {
+  color:var(--muted);
+  font-size:.72rem;
+  font-weight:760;
+}
+.duration-presets > div {
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+}
+.duration-presets small {
+  color:var(--muted);
+  font-size:.63rem;
+  line-height:1.35;
+}
+.duration-chip {
+  min-height:34px;
+  padding:7px 11px;
+  border-radius:999px;
+  border:1px solid rgba(34,74,84,.10);
+  background:rgba(255,255,255,.66);
+  color:var(--petrol);
+  font:inherit;
+  font-size:.68rem;
+  font-weight:780;
+}
+.duration-chip.is-active {
+  background:var(--petrol);
+  color:#fff;
+  border-color:var(--petrol);
+  box-shadow:0 8px 22px rgba(34,74,84,.16);
+}
+html[data-theme="dark"] .duration-chip { background:rgba(237,226,201,.045); border-color:rgba(237,226,201,.09); color:var(--cream); }
+html[data-theme="dark"] .duration-chip.is-active { background:var(--gold); color:#18231f; border-color:var(--gold); }
+@media (max-width:430px) {
+  .context-strip { gap:6px; margin-inline:0; padding-inline:0; }
+  .context-chip { min-height:44px; padding:7px 6px; gap:5px; font-size:.58rem; border-radius:14px; }
+  .context-chip svg { width:12px; height:12px; }
+  .duration-chip { padding:7px 10px; font-size:.64rem; }
+}
+@media (max-width:350px) {
+  .context-chip { font-size:.54rem; padding-inline:4px; }
+}
