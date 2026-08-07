@@ -1727,3 +1727,71 @@ html[data-animation-mode="subtle"] .ambient-two { animation-duration:28s !import
   .motion-picker button { font-size:.6rem; padding-inline:4px; }
   .appearance-subgroup-copy { align-items:start; flex-direction:column; gap:2px; }
 }
+
+
+/* v4.1 — petits détails qui rendent AGENDA vivant au quotidien */
+.settings-version { display:inline-flex; margin-top:7px; color:var(--muted); font-size:.61rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+
+.live-moment {
+  width:min(100%, 560px); min-width:0; margin:20px 0 0; padding:10px 11px 10px 10px;
+  display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:10px;
+  border:1px solid rgba(246,238,216,.12); border-radius:20px; color:var(--cream); text-align:left;
+  background:linear-gradient(135deg,rgba(246,238,216,.09),rgba(246,238,216,.045));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  cursor:pointer; overflow:hidden; position:relative; isolation:isolate;
+}
+.live-moment::after { content:""; position:absolute; inset:0; z-index:-1; opacity:0; background:linear-gradient(105deg,transparent 26%,rgba(231,213,167,.08) 50%,transparent 74%); transform:translateX(-70%); }
+html[data-animation-mode="live"] .live-moment.is-active::after,
+html[data-animation-mode="live"] .live-moment.is-soon::after { animation:v41LiveMomentSweep 7s ease-in-out infinite; opacity:1; }
+.live-moment-orb { width:36px; height:36px; border-radius:13px; display:grid; place-items:center; color:#E7D5A7; background:rgba(231,213,167,.1); box-shadow:inset 0 1px 0 rgba(255,255,255,.07); }
+.live-moment-orb svg { width:16px; height:16px; }
+.live-moment-copy { min-width:0; display:grid; gap:1px; }
+.live-moment-copy small { color:rgba(246,238,216,.55); font-size:.56rem; font-weight:850; letter-spacing:.1em; text-transform:uppercase; }
+.live-moment-copy strong { min-width:0; color:var(--cream); font-size:.74rem; font-weight:780; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.live-moment-side { min-width:0; display:grid; justify-items:end; gap:1px; text-align:right; }
+.live-moment-side strong { color:#E7D5A7; font-size:.73rem; }
+.live-moment-side small { max-width:120px; color:rgba(246,238,216,.48); font-size:.55rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.live-moment.is-active .live-moment-orb { background:rgba(199,154,92,.17); box-shadow:0 0 0 5px rgba(199,154,92,.055), inset 0 1px 0 rgba(255,255,255,.07); }
+html[data-animation-mode="live"] .live-moment.is-active .live-moment-orb { animation:v41NowPulse 2.8s ease-in-out infinite; }
+
+.timeline-now { position:relative; min-height:32px; margin:2px 0 12px; padding:6px 10px 6px 39px; display:flex; align-items:center; gap:7px; border-radius:14px; color:var(--petrol); background:linear-gradient(90deg,rgba(199,154,92,.11),rgba(199,154,92,.025)); border:1px solid rgba(199,154,92,.14); }
+.timeline-now::before { content:""; position:absolute; left:-28px; right:100%; top:50%; width:31px; height:1px; background:linear-gradient(90deg,var(--gold),rgba(199,154,92,.2)); }
+.timeline-now-dot { position:absolute; left:13px; top:50%; width:8px; height:8px; border-radius:50%; background:var(--gold); box-shadow:0 0 0 5px rgba(199,154,92,.11),0 0 15px rgba(199,154,92,.32); transform:translateY(-50%); }
+.timeline-now strong { font-size:.65rem; color:var(--gold); }
+.timeline-now small { font-size:.58rem; color:var(--muted); font-weight:780; text-transform:uppercase; letter-spacing:.08em; }
+html[data-animation-mode="live"] .timeline-now-dot { animation:v41TimelinePulse 2.4s ease-in-out infinite; }
+
+.completion-burst { position:fixed; z-index:999; width:1px; height:1px; pointer-events:none; }
+.completion-burst i { --spark-angle:0deg; --spark-distance:28px; --spark-delay:0ms; position:absolute; left:0; top:0; width:5px; height:5px; border-radius:50%; background:var(--gold); box-shadow:0 0 7px rgba(199,154,92,.28); transform:translate(-50%,-50%); animation:v41Spark .68s var(--spring, cubic-bezier(.22,1,.36,1)) var(--spark-delay) forwards; }
+.completion-burst.is-routine i:nth-child(even) { background:#5A9C79; }
+.completion-burst.is-shopping i:nth-child(even) { background:var(--petrol-2); }
+.completion-pop { animation:v41CompletionPop .46s cubic-bezier(.22,1,.36,1) !important; }
+
+html[data-animation-mode="live"] .family-cover-media.has-photo img { animation:v41FamilyPhotoDrift 18s ease-in-out infinite alternate; transform-origin:center; }
+html[data-animation-mode="live"] .hero-tree { animation:v41HeroTreeDrift 15s ease-in-out infinite alternate; }
+
+/* Ambiance très discrète selon le moment de la journée */
+html[data-day-phase="morning"] body::before { background:radial-gradient(circle at 78% 8%,rgba(213,170,102,.10),transparent 27%),radial-gradient(circle at 9% 62%,rgba(69,126,120,.055),transparent 26%); }
+html[data-day-phase="evening"] body::before { background:radial-gradient(circle at 82% 4%,rgba(199,154,92,.09),transparent 28%),radial-gradient(circle at 7% 65%,rgba(48,83,91,.075),transparent 28%); }
+html[data-day-phase="night"] body::before { background:radial-gradient(circle at 82% 4%,rgba(154,119,82,.055),transparent 28%),radial-gradient(circle at 7% 65%,rgba(43,74,80,.055),transparent 28%); }
+
+html[data-theme="dark"] .timeline-now { color:#D7E3DF; background:linear-gradient(90deg,rgba(199,154,92,.11),rgba(199,154,92,.025)); border-color:rgba(199,154,92,.13); }
+
+@media (max-width:390px) {
+  .live-moment { grid-template-columns:auto minmax(0,1fr); padding:9px; }
+  .live-moment-side { grid-column:2; grid-row:2; display:flex; justify-content:flex-start; gap:7px; text-align:left; margin-top:-2px; }
+  .live-moment-side small { max-width:155px; }
+  .live-moment-copy strong { font-size:.7rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-moment::after, .live-moment-orb, .timeline-now-dot, .family-cover-media.has-photo img, .hero-tree, .completion-burst i, .completion-pop { animation:none !important; }
+}
+
+@keyframes v41LiveMomentSweep { 0%,18% { transform:translateX(-72%); } 48%,100% { transform:translateX(72%); } }
+@keyframes v41NowPulse { 0%,100% { transform:scale(1); box-shadow:0 0 0 5px rgba(199,154,92,.045); } 50% { transform:scale(1.045); box-shadow:0 0 0 8px rgba(199,154,92,.075); } }
+@keyframes v41TimelinePulse { 0%,100% { box-shadow:0 0 0 5px rgba(199,154,92,.10),0 0 10px rgba(199,154,92,.22); } 50% { box-shadow:0 0 0 8px rgba(199,154,92,.055),0 0 18px rgba(199,154,92,.36); } }
+@keyframes v41Spark { 0% { opacity:1; transform:translate(-50%,-50%) rotate(var(--spark-angle)) translateX(0) scale(.75); } 100% { opacity:0; transform:translate(-50%,-50%) rotate(var(--spark-angle)) translateX(var(--spark-distance)) scale(.15); } }
+@keyframes v41CompletionPop { 0% { transform:scale(1); } 45% { transform:scale(1.16); } 100% { transform:scale(1); } }
+@keyframes v41FamilyPhotoDrift { 0% { transform:scale(1.025) translate3d(-.4%,0,0); } 100% { transform:scale(1.065) translate3d(.8%,-.5%,0); } }
+@keyframes v41HeroTreeDrift { 0% { transform:rotate(-3deg) translate3d(0,0,0) scale(1); } 100% { transform:rotate(-1.5deg) translate3d(-5px,-7px,0) scale(1.035); } }

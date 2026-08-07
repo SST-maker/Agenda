@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.0.1';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.0.1';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.1.0';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.1.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -170,11 +170,140 @@ function getGreeting() {
   return 'Bonsoir';
 }
 
+const APP_VERSION = '4.1.0';
+const VERSION_SEEN_KEY = 'agenda-version-seen';
+let temporalTimer = 0;
+let previousOnlineState = navigator.onLine;
+
+function eventTiming(event) {
+  const start = new Date(`${event.date}T${event.allDay ? '00:00' : event.time}:00`);
+  const duration = event.allDay ? 24 * 60 : Math.max(1, Number(event.duration || 60));
+  return { start, end: new Date(start.getTime() + duration * 60000) };
+}
+
+function currentDayPhase(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 7) return 'night';
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'day';
+  if (hour < 22) return 'evening';
+  return 'night';
+}
+
+function relativeMomentLabel(minutes) {
+  if (minutes <= 0) return 'Maintenant';
+  if (minutes < 60) return `Dans ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `Dans ${hours} h ${rest}` : `Dans ${hours} h`;
+}
+
+function liveMomentFor(data = store.getState()) {
+  const now = new Date();
+  const today = toISO(now);
+  const events = eventsForDate(data, today).map((event) => ({ event, ...eventTiming(event) }));
+  const inProgress = events
+    .filter(({ event, start, end }) => !event.allDay && start <= now && end > now)
+    .sort((a, b) => a.end - b.end)[0];
+  if (inProgress) {
+    const minutesLeft = Math.max(1, Math.ceil((inProgress.end - now) / 60000));
+    return { type: 'active', event: inProgress.event, kicker: 'En cours', title: inProgress.event.title, meta: `${minutesLeft} min restantes` };
+  }
+  const upcoming = events.filter(({ start }) => start > now).sort((a, b) => a.start - b.start)[0];
+  if (upcoming) {
+    const minutes = Math.max(1, Math.ceil((upcoming.start - now) / 60000));
+    return { type: minutes <= 120 ? 'soon' : 'upcoming', event: upcoming.event, kicker: relativeMomentLabel(minutes), title: upcoming.event.title, meta: upcoming.event.allDay ? 'Toute la journée' : upcoming.event.time };
+  }
+  const pendingTasks = tasksForMember(data).filter((task) => task.status !== 'done' && task.dueDate <= today).length;
+  const routinesLeft = (data.routines || []).filter((routine) => routineIsScheduled(routine, now) && !routineIsCompleted(data, routine.id, today)).length;
+  if (pendingTasks || routinesLeft) {
+    const bits = [pendingTasks ? `${pendingTasks} tâche${pendingTasks > 1 ? 's' : ''}` : '', routinesLeft ? `${routinesLeft} routine${routinesLeft > 1 ? 's' : ''}` : ''].filter(Boolean);
+    return { type: 'todo', event: null, kicker: 'Maintenant', title: 'La journée continue doucement', meta: bits.join(' · ') };
+  }
+  return { type: 'calm', event: null, kicker: 'Maintenant', title: 'Tout est calme', meta: 'Profitez du moment' };
+}
+
+function renderLiveMoment(data = store.getState()) {
+  const button = $('#liveMomentButton');
+  if (!button) return;
+  const now = new Date();
+  document.documentElement.dataset.dayPhase = currentDayPhase(now);
+  const live = liveMomentFor(data);
+  $('#liveMomentKicker').textContent = live.kicker;
+  $('#liveMomentTitle').textContent = live.title;
+  $('#liveMomentClock').textContent = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  $('#liveMomentMeta').textContent = live.meta;
+  button.dataset.liveEventId = live.event?.id || '';
+  button.className = `live-moment tap is-${live.type}`;
+  button.setAttribute('aria-label', live.event ? `Ouvrir ${live.event.title}` : `${live.title}, ${live.meta}`);
+}
+
+function timelineNowMarker() {
+  const now = new Date();
+  return `<div class="timeline-now" aria-label="Maintenant ${now.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}"><span class="timeline-now-dot"></span><strong class="timeline-now-time">${now.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}</strong><small>Maintenant</small></div>`;
+}
+
+function completionBurst(anchor, kind = 'done') {
+  if (!anchor || motionIsReduced()) return;
+  anchor.classList.remove('completion-pop');
+  requestAnimationFrame(() => anchor.classList.add('completion-pop'));
+  const rect = anchor.getBoundingClientRect();
+  const burst = document.createElement('span');
+  burst.className = `completion-burst is-${kind}`;
+  burst.style.left = `${rect.left + rect.width / 2}px`;
+  burst.style.top = `${rect.top + rect.height / 2}px`;
+  for (let index = 0; index < 7; index += 1) {
+    const spark = document.createElement('i');
+    spark.style.setProperty('--spark-angle', `${index * (360 / 7) - 90}deg`);
+    spark.style.setProperty('--spark-distance', `${24 + (index % 3) * 5}px`);
+    spark.style.setProperty('--spark-delay', `${index * 18}ms`);
+    burst.append(spark);
+  }
+  document.body.append(burst);
+  window.setTimeout(() => burst.remove(), 950);
+}
+
+function maybeCelebrateClearDay(hadPending = false) {
+  if (!hadPending) return;
+  window.setTimeout(() => {
+    const data = store.getState();
+    const today = toISO(new Date());
+    const pendingTasks = tasksForMember(data).some((task) => task.status !== 'done' && task.dueDate <= today);
+    const pendingRoutines = (data.routines || []).some((routine) => routineIsScheduled(routine) && !routineIsCompleted(data, routine.id, today));
+    if (!pendingTasks && !pendingRoutines) showToast('✨ Tout est fait pour aujourd’hui');
+  }, 80);
+}
+
+function setupTemporalUI() {
+  let lastGroup = groupForTime(new Date().toTimeString().slice(0,5));
+  const tick = () => {
+    if (document.hidden || !store.getAuthStatus().authenticated) return;
+    renderLiveMoment(store.getState());
+    const marker = $('.timeline-now-time');
+    if (marker) marker.textContent = new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+    const group = groupForTime(new Date().toTimeString().slice(0,5));
+    if (state.activeView === 'home' && state.selectedDate === toISO(new Date()) && group !== lastGroup) renderTimeline(store.getState());
+    lastGroup = group;
+  };
+  window.clearInterval(temporalTimer);
+  temporalTimer = window.setInterval(tick, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+  window.addEventListener('pageshow', tick);
+  tick();
+}
+
+function announceVersionIfNeeded() {
+  const previous = localStorage.getItem(VERSION_SEEN_KEY);
+  localStorage.setItem(VERSION_SEEN_KEY, APP_VERSION);
+  if (previous && previous !== APP_VERSION) window.setTimeout(() => showToast('AGENDA 4.1 est prête ✨'), 900);
+}
+
 // Rendu central : chaque vue lit le même état local-first.
 function render() {
   const data = store.getState();
   applyUserPreferences(data);
   renderHeader(data);
+  renderLiveMoment(data);
   renderMemberFilter(data);
   renderFamilyFeed(data);
   renderHomeTools(data);
@@ -544,7 +673,8 @@ function eventCard(event, data) {
 function renderTimeline(data) {
   const selected = parseISO(state.selectedDate);
   const today = new Date();
-  $('#selectedDateLabel').textContent = sameDay(selected, today) ? 'Aujourd’hui' : capitalize(longDate.format(selected));
+  const isToday = sameDay(selected, today);
+  $('#selectedDateLabel').textContent = isToday ? `Aujourd’hui · ${today.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}` : capitalize(longDate.format(selected));
   const events = eventsForDate(data, state.selectedDate);
   const birthdays = birthdayMembersForDate(data, state.selectedDate).filter((member) => state.activeMember === 'all' || member.id === state.activeMember);
   if (!events.length && !birthdays.length) {
@@ -553,10 +683,20 @@ function renderTimeline(data) {
   }
   const birthdayCards = birthdays.map((member) => `<article class="birthday-card">${renderAvatar(member, { className: 'birthday-avatar' })}<div><span>🎂 Anniversaire</span><strong>${escapeHTML(memberDisplayName(member))}</strong><p>Une belle journée à célébrer ensemble.</p></div></article>`).join('');
   const groups = ['Toute la journée', 'Matin', 'Après-midi', 'Soirée'];
+  const nowMinutes = today.getHours() * 60 + today.getMinutes();
+  const currentGroup = groupForTime(today.toTimeString().slice(0,5));
   $('#timeline').innerHTML = birthdayCards + groups.map((group) => {
     const items = events.filter((event) => groupForTime(event.time, event.allDay) === group);
-    if (!items.length) return '';
-    return `<div class="timeline-group"><span class="time-node"></span><p class="timeline-label">${group}</p>${items.map((event) => eventCard(event, data)).join('')}</div>`;
+    const shouldShowNow = isToday && group === currentGroup;
+    if (!items.length && !shouldShowNow) return '';
+    let markerInserted = false;
+    const cards = items.map((event) => {
+      const beforeEvent = shouldShowNow && !markerInserted && !event.allDay && timeToMinutes(event.time) > nowMinutes;
+      if (beforeEvent) markerInserted = true;
+      return `${beforeEvent ? timelineNowMarker() : ''}${eventCard(event, data)}`;
+    }).join('');
+    const tailMarker = shouldShowNow && !markerInserted ? timelineNowMarker() : '';
+    return `<div class="timeline-group ${shouldShowNow ? 'has-now' : ''}"><span class="time-node"></span><p class="timeline-label">${group}</p>${cards}${tailMarker}</div>`;
   }).join('');
 }
 
@@ -2008,6 +2148,9 @@ function setupEvents() {
     if (event.target.closest('[data-open-shopping]')) openShoppingDialog();
     if (event.target.closest('[data-open-routine]')) openRoutineDialog();
 
+    const liveMomentButton = event.target.closest('#liveMomentButton');
+    if (liveMomentButton?.dataset.liveEventId) openEventDialog(liveMomentButton.dataset.liveEventId);
+
     const collaborationButton = event.target.closest('[data-collaborate-type]');
     if (collaborationButton) openCollaborationDialog(collaborationButton.dataset.collaborateType, collaborationButton.dataset.collaborateId);
 
@@ -2046,8 +2189,17 @@ function setupEvents() {
 
     const taskToggleButton = event.target.closest('[data-toggle-task]');
     if (taskToggleButton) {
-      const task = store.getState().tasks.find((item) => item.id === taskToggleButton.dataset.toggleTask);
-      if (task) { store.toggleTask(task.id, task.status !== 'done'); vibration(); renderTasksDialog(); }
+      const before = store.getState();
+      const task = before.tasks.find((item) => item.id === taskToggleButton.dataset.toggleTask);
+      if (task) {
+        const completing = task.status !== 'done';
+        const hadPending = completing && (tasksForMember(before).some((item) => item.status !== 'done' && item.dueDate <= toISO(new Date())) || (before.routines || []).some((routine) => routineIsScheduled(routine) && !routineIsCompleted(before, routine.id, toISO(new Date()))));
+        if (completing) completionBurst(taskToggleButton, 'task');
+        store.toggleTask(task.id, completing);
+        vibration();
+        if (completing) maybeCelebrateClearDay(hadPending);
+        renderTasksDialog();
+      }
     }
 
     const taskFilterButton = event.target.closest('[data-task-filter]');
@@ -2056,7 +2208,13 @@ function setupEvents() {
     const shoppingToggle = event.target.closest('[data-toggle-shopping]');
     if (shoppingToggle) {
       const item = store.getState().shoppingItems.find((entry) => entry.id === shoppingToggle.dataset.toggleShopping);
-      if (item) { store.toggleShoppingItem(item.id, !item.checked); vibration(); renderShoppingDialog(); }
+      if (item) {
+        const checking = !item.checked;
+        if (checking) completionBurst(shoppingToggle, 'shopping');
+        store.toggleShoppingItem(item.id, checking);
+        vibration();
+        renderShoppingDialog();
+      }
     }
     const shoppingDelete = event.target.closest('[data-delete-shopping]');
     if (shoppingDelete) {
@@ -2072,8 +2230,12 @@ function setupEvents() {
       const routine = data.routines.find((item) => item.id === routineToggle.dataset.toggleRoutine);
       if (routine && routineIsScheduled(routine)) {
         const iso = toISO(new Date());
-        store.toggleRoutineCompletion(routine.id, iso, !routineIsCompleted(data, routine.id, iso));
+        const completing = !routineIsCompleted(data, routine.id, iso);
+        const hadPending = completing && (tasksForMember(data).some((item) => item.status !== 'done' && item.dueDate <= iso) || (data.routines || []).some((item) => routineIsScheduled(item) && !routineIsCompleted(data, item.id, iso)));
+        if (completing) completionBurst(routineToggle, 'routine');
+        store.toggleRoutineCompletion(routine.id, iso, completing);
         vibration();
+        if (completing) maybeCelebrateClearDay(hadPending);
         render();
       }
     }
@@ -2229,8 +2391,16 @@ function setupEvents() {
     finally { setAuthBusy(form, false); }
   });
   $('#orphanLogoutButton').addEventListener('click', async () => { await store.logout(); applyAuthUI(); });
-  window.addEventListener('online', updateConnection);
-  window.addEventListener('offline', updateConnection);
+  window.addEventListener('online', () => {
+    updateConnection();
+    if (!previousOnlineState) showToast('Connexion retrouvée · synchronisation en cours');
+    previousOnlineState = true;
+  });
+  window.addEventListener('offline', () => {
+    updateConnection();
+    if (previousOnlineState) showToast('Mode hors ligne · vos changements sont conservés');
+    previousOnlineState = false;
+  });
   window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if ((store.getState().settings?.theme || 'system') === 'system') applyUserPreferences(store.getState()); });
   window.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change', () => { if (getMotionMode() === 'system') applyMotionPreference(); });
   store.addEventListener('change', (event) => {
@@ -2292,6 +2462,8 @@ async function bootstrap() {
   updateConnection();
   const auth = await store.init();
   applyAuthUI();
+  setupTemporalUI();
+  if (auth.authenticated) announceVersionIfNeeded();
   if (auth.authenticated && state.deepLinkEvent) setTimeout(() => openEventDialog(state.deepLinkEvent), 250);
   else if (auth.authenticated && state.deepLinkTask) setTimeout(() => openTaskDialog(state.deepLinkTask), 250);
   else if (auth.authenticated && new URLSearchParams(location.search).get('action') === 'task') setTimeout(() => openTaskDialog(), 250);

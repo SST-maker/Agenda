@@ -104,3 +104,8 @@ La v3.7 ajoute les alertes de modification/annulation, les rappels de départ, r
 ## v4.0 — Premium UX
 
 Cette version finalise le rendu sans ajouter de nouveau module métier : surfaces vitrées cohérentes, transitions plus naturelles, micro-interactions tactiles, navigation basse raffinée, dialogues plus fluides, thème sombre harmonisé et respect de `prefers-reduced-motion`. Aucun nouveau SQL n’est requis.
+
+
+## v4.1.0 — Animations vivantes
+
+Orbites persistantes, réglage Système/Discrètes/Vivantes, détails premium continus et relance automatique des animations critiques sur iOS.
