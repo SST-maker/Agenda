@@ -51,7 +51,7 @@ function createSeed() {
     reads: [],
     attachments: [],
     activity: [],
-    notificationPreferences: { pushEnabled: false, eventReminders: true, taskReminders: true, dailySummary: true, dailySummaryTime: '07:30' },
+    notificationPreferences: { pushEnabled: false, eventReminders: true, taskReminders: true, routineReminders: true, changeAlerts: true, departureReminders: true, departureMinutes: 20, overdueTaskReminders: true, dailySummary: true, dailySummaryTime: '07:30', snoozeMinutes: 30 },
     syncedAt: null
   };
 }
@@ -78,8 +78,14 @@ function normalizeState(candidate) {
       pushEnabled: Boolean(candidate.notificationPreferences?.pushEnabled),
       eventReminders: candidate.notificationPreferences?.eventReminders !== false,
       taskReminders: candidate.notificationPreferences?.taskReminders !== false,
+      routineReminders: candidate.notificationPreferences?.routineReminders !== false,
+      changeAlerts: candidate.notificationPreferences?.changeAlerts !== false,
+      departureReminders: candidate.notificationPreferences?.departureReminders !== false,
+      departureMinutes: Number(candidate.notificationPreferences?.departureMinutes || 20),
+      overdueTaskReminders: candidate.notificationPreferences?.overdueTaskReminders !== false,
       dailySummary: candidate.notificationPreferences?.dailySummary !== false,
-      dailySummaryTime: candidate.notificationPreferences?.dailySummaryTime || '07:30'
+      dailySummaryTime: candidate.notificationPreferences?.dailySummaryTime || '07:30',
+      snoozeMinutes: Number(candidate.notificationPreferences?.snoozeMinutes || 30)
     },
     syncedAt: candidate.syncedAt || null
   };
@@ -325,8 +331,14 @@ function mapNotificationPreferences(row) {
     pushEnabled: Boolean(row?.push_enabled),
     eventReminders: row?.event_reminders !== false,
     taskReminders: row?.task_reminders !== false,
+    routineReminders: row?.routine_reminders !== false,
+    changeAlerts: row?.change_alerts !== false,
+    departureReminders: row?.departure_reminders !== false,
+    departureMinutes: Number(row?.departure_minutes || 20),
+    overdueTaskReminders: row?.overdue_task_reminders !== false,
     dailySummary: row?.daily_summary !== false,
-    dailySummaryTime: row?.daily_summary_time ? String(row.daily_summary_time).slice(0, 5) : '07:30'
+    dailySummaryTime: row?.daily_summary_time ? String(row.daily_summary_time).slice(0, 5) : '07:30',
+    snoozeMinutes: Number(row?.snooze_minutes || 30)
   };
 }
 
@@ -945,14 +957,32 @@ class AgendaStore extends EventTarget {
         : Boolean(preferences.pushEnabled),
       event_reminders: preferences.eventReminders !== false,
       task_reminders: preferences.taskReminders !== false,
+      routine_reminders: preferences.routineReminders !== false,
+      change_alerts: preferences.changeAlerts !== false,
+      departure_reminders: preferences.departureReminders !== false,
+      departure_minutes: Number(preferences.departureMinutes || 20),
+      overdue_task_reminders: preferences.overdueTaskReminders !== false,
       daily_summary: preferences.dailySummary !== false,
-      daily_summary_time: preferences.dailySummaryTime || '07:30'
+      daily_summary_time: preferences.dailySummaryTime || '07:30',
+      snooze_minutes: Number(preferences.snoozeMinutes || 30)
     };
     const { error } = await this.supabase.from('notification_preferences').upsert(row, { onConflict: 'user_id' });
     if (error) throw error;
     this.state.notificationPreferences = mapNotificationPreferences(row);
     this.saveState('notification-preferences-updated');
     return this.state.notificationPreferences;
+  }
+
+  async snoozeNotification(entityType, entityId, minutes = 30) {
+    if (!this.session?.user?.id) throw new Error('Session indisponible.');
+    if (!navigator.onLine) throw new Error('Une connexion Internet est nécessaire pour reporter un rappel.');
+    const { error } = await this.supabase.rpc('snooze_my_notification', {
+      p_entity_type: String(entityType || ''),
+      p_entity_id: entityId,
+      p_minutes: Number(minutes || 30)
+    });
+    if (error) throw error;
+    return true;
   }
 
   async savePushSubscription(subscription) {

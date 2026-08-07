@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.6.0';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.6.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.7.0';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.7.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -16,6 +16,10 @@ const state = {
   routineFilter: 'today',
   deepLinkEvent: new URLSearchParams(location.search).get('event') || '',
   deepLinkTask: new URLSearchParams(location.search).get('task') || '',
+  notificationAction: new URLSearchParams(location.search).get('notificationAction') || '',
+  notificationEntityType: new URLSearchParams(location.search).get('entityType') || '',
+  notificationEntityId: new URLSearchParams(location.search).get('entityId') || '',
+  notificationMinutes: Number(new URLSearchParams(location.search).get('minutes') || 30),
   deferredInstallPrompt: null,
   authMode: 'login'
 };
@@ -202,10 +206,10 @@ function renderHeader(data) {
   $('#pulseMeterFill').style.width = `${count === 0 ? 0 : Math.min(96, Math.max(18, count * 16))}%`;
 
   const birthdaysToday = birthdayMembersForDate(data, todayIso);
-  if (birthdaysToday.length) $('#heroTitle').innerHTML = `🎂 Joyeux anniversaire ${escapeHTML(birthdaysToday.map(memberDisplayName).join(' & '))} !<br><em>Une journée à célébrer.</em>`;
-  else if (count === 0) $('#heroTitle').innerHTML = `Aujourd’hui respire.<br><em>Profitez-en ensemble.</em>`;
-  else if (count === 1) $('#heroTitle').innerHTML = `Un seul moment prévu.<br><em>Le reste vous appartient.</em>`;
-  else $('#heroTitle').innerHTML = `${count} moments aujourd’hui.<br><em>Tout est sous contrôle.</em>`;
+  if (birthdaysToday.length) $('#heroTitle').innerHTML = `🎂 Joyeux anniversaire ${escapeHTML(birthdaysToday.map(memberDisplayName).join(' & '))} !<br><em>Une journée à célébrer</em>`;
+  else if (count === 0) $('#heroTitle').innerHTML = `Aujourd’hui respire<br><em>Profitez-en ensemble</em>`;
+  else if (count === 1) $('#heroTitle').innerHTML = `Un seul moment prévu<br><em>Le reste vous appartient</em>`;
+  else $('#heroTitle').innerHTML = `${count} moments aujourd’hui<br><em>Tout est sous contrôle</em>`;
 
   const perMember = data.members.map((member) => ({ member, count: todayEvents.filter((event) => event.memberIds.includes(member.id)).length }));
   const pendingTasksToday = (data.tasks || []).filter((task) => task.status !== 'done' && task.dueDate <= todayIso).length;
@@ -581,7 +585,7 @@ function renderFamily(data) {
       if (items[index].start < previousEnd) conflictCount += 1;
     }
   }
-  $('.family-pulse-card h2').textContent = conflictCount ? 'Un rythme à rééquilibrer.' : 'Tout le monde est aligné.';
+  $('.family-pulse-card h2').textContent = conflictCount ? 'Un rythme à rééquilibrer' : 'Tout le monde est aligné';
   $('#familyPulseCopy').textContent = conflictCount
     ? `${conflictCount} chevauchement${conflictCount > 1 ? 's' : ''} à vérifier dans les prochaines 48 heures.`
     : 'Aucun chevauchement détecté dans les prochaines 48 heures.';
@@ -608,14 +612,14 @@ function renderFocus(data) {
   const hasAllDay = todayEvents.some((event) => event.allDay);
   const lastEvent = todayEvents.filter((event) => !event.allDay).sort((a,b) => b.time.localeCompare(a.time))[0];
   if (hasAllDay && !lastEvent) {
-    $('#calmHeadline').textContent = 'Une journée entière est déjà réservée, gardez de petites respirations.';
+    $('#calmHeadline').textContent = 'Une journée entière est déjà réservée, gardez de petites respirations';
   } else if (lastEvent) {
     const endMinutes = timeToMinutes(lastEvent.time) + lastEvent.duration;
     const hours = String(Math.floor(endMinutes / 60) % 24).padStart(2, '0');
     const minutes = String(endMinutes % 60).padStart(2, '0');
-    $('#calmHeadline').textContent = `Votre prochain vrai moment libre commence à ${hours} h ${minutes}.`;
+    $('#calmHeadline').textContent = `Votre prochain vrai moment libre commence à ${hours} h ${minutes}`;
   } else {
-    $('#calmHeadline').textContent = 'Aujourd’hui est déjà un espace de respiration.';
+    $('#calmHeadline').textContent = 'Aujourd’hui est déjà un espace de respiration';
   }
 }
 
@@ -1108,7 +1112,7 @@ function renderNotificationIndicator(data = store.getState()) {
   const enabled = Boolean(data.notificationPreferences?.pushEnabled && permission === 'granted');
   dot.classList.toggle('is-active', enabled);
   dot.classList.toggle('is-blocked', permission === 'denied');
-  $('#notificationSettingCopy').textContent = enabled ? 'Rappels actifs sur cet appareil.' : permission === 'denied' ? 'Notifications bloquées dans les réglages du navigateur.' : 'Rappels de rendez-vous, tâches et résumé du matin.';
+  $('#notificationSettingCopy').textContent = enabled ? 'Rappels avancés actifs sur cet appareil' : permission === 'denied' ? 'Notifications bloquées dans les réglages du navigateur' : 'Rappels ciblés, changements, routines et résumé personnalisé';
 }
 
 async function renderNotificationDialog() {
@@ -1116,8 +1120,14 @@ async function renderNotificationDialog() {
   const prefs = data.notificationPreferences || {};
   $('#eventRemindersToggle').checked = prefs.eventReminders !== false;
   $('#taskRemindersToggle').checked = prefs.taskReminders !== false;
+  $('#routineRemindersToggle').checked = prefs.routineReminders !== false;
+  $('#changeAlertsToggle').checked = prefs.changeAlerts !== false;
+  $('#departureRemindersToggle').checked = prefs.departureReminders !== false;
+  $('#departureMinutesSelect').value = String(prefs.departureMinutes || 20);
+  $('#overdueTaskRemindersToggle').checked = prefs.overdueTaskReminders !== false;
   $('#dailySummaryToggle').checked = prefs.dailySummary !== false;
   $('#dailySummaryTime').value = prefs.dailySummaryTime || '07:30';
+  $('#snoozeMinutesSelect').value = String(prefs.snoozeMinutes || 30);
   const supported = notificationsSupported();
   const permission = supported ? Notification.permission : 'unsupported';
   let subscription = null;
@@ -1133,7 +1143,7 @@ async function renderNotificationDialog() {
   $('#enableNotificationsButton').textContent = active ? 'Désactiver' : 'Activer';
   $('#enableNotificationsButton').disabled = !supported || permission === 'denied';
   $('#testNotificationButton').disabled = !active;
-  $('#notificationSupportNote').textContent = !supported ? 'Sur iPhone, les notifications Web Push nécessitent une PWA ajoutée à l’écran d’accueil.' : active ? 'Les délais se règlent directement dans chaque rendez-vous ou tâche.' : 'L’activation doit être faite sur chaque téléphone qui souhaite recevoir des rappels.';
+  $('#notificationSupportNote').textContent = !supported ? 'Sur iPhone, les notifications Web Push nécessitent une PWA ajoutée à l’écran d’accueil.' : active ? 'Les rappels sont ciblés selon les personnes concernées et peuvent être reportés depuis la notification' : 'L’activation doit être faite sur chaque téléphone qui souhaite recevoir des rappels';
 }
 
 async function openNotificationDialog() {
@@ -1175,8 +1185,14 @@ async function saveNotificationPreferences() {
     await store.saveNotificationPreferences({
       eventReminders: $('#eventRemindersToggle').checked,
       taskReminders: $('#taskRemindersToggle').checked,
+      routineReminders: $('#routineRemindersToggle').checked,
+      changeAlerts: $('#changeAlertsToggle').checked,
+      departureReminders: $('#departureRemindersToggle').checked,
+      departureMinutes: Number($('#departureMinutesSelect').value || 20),
+      overdueTaskReminders: $('#overdueTaskRemindersToggle').checked,
       dailySummary: $('#dailySummaryToggle').checked,
-      dailySummaryTime: $('#dailySummaryTime').value || '07:30'
+      dailySummaryTime: $('#dailySummaryTime').value || '07:30',
+      snoozeMinutes: Number($('#snoozeMinutesSelect').value || 30)
     });
     showToast('Préférences de notification enregistrées.');
     await renderNotificationDialog();
@@ -1196,6 +1212,43 @@ async function testNotification() {
       data: { url: './' }
     });
   } catch (error) { showToast(error.message || 'Test impossible.'); }
+}
+
+async function processNotificationAction() {
+  if (!state.notificationAction || !state.notificationEntityId) return false;
+  const action = state.notificationAction;
+  const entityType = state.notificationEntityType;
+  const entityId = state.notificationEntityId;
+  try {
+    if (action === 'snooze') {
+      await store.snoozeNotification(entityType, entityId, state.notificationMinutes || 30);
+      showToast(`Rappel reporté de ${state.notificationMinutes || 30} min`);
+    } else if (action === 'completeTask' && entityType === 'task') {
+      store.toggleTask(entityId, true);
+      showToast('Tâche terminée depuis la notification');
+    }
+    state.notificationAction = '';
+    state.notificationEntityType = '';
+    state.notificationEntityId = '';
+    history.replaceState({}, '', location.pathname);
+    return true;
+  } catch (error) {
+    showToast(error.message || 'Action de notification impossible');
+    return false;
+  }
+}
+
+function setupMobileViewportStability() {
+  const viewport = window.visualViewport;
+  const sync = () => {
+    const keyboardLikelyOpen = Boolean(viewport && window.innerHeight - viewport.height > 120);
+    document.documentElement.classList.toggle('keyboard-open', keyboardLikelyOpen);
+  };
+  viewport?.addEventListener('resize', sync);
+  viewport?.addEventListener('scroll', sync);
+  document.addEventListener('focusout', () => setTimeout(sync, 250));
+  window.addEventListener('orientationchange', () => setTimeout(sync, 300));
+  sync();
 }
 
 function showToast(message) {
@@ -1588,6 +1641,7 @@ function applyAuthUI(detail = {}) {
     history.replaceState({}, '', location.pathname);
     unlockApp();
     renderAccount();
+    if (state.notificationAction) setTimeout(() => processNotificationAction(), 80);
     if (detail.expired) showToast('La session a expiré. Reconnecte-toi.');
     return;
   }
@@ -1938,6 +1992,7 @@ async function bootstrap() {
   document.body.classList.add('is-authenticating');
   setupEvents();
   setupPWA();
+  setupMobileViewportStability();
   render();
   updateConnection();
   const auth = await store.init();

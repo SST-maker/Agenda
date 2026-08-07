@@ -1102,3 +1102,47 @@ html, body { max-width: 100%; overflow-x: clip; }
 .search-activity-row > div { min-width:0; display:grid; }
 .search-activity-row strong { color:var(--forest); font-size:.69rem; }
 .search-activity-row small { color:var(--muted); font-size:.61rem; overflow-wrap:anywhere; }
+
+/* v3.7 — stabilité iPhone + notifications avancées */
+.notification-inline-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 699px) {
+  /* iOS zoome automatiquement les champs en dessous de 16 px */
+  input,
+  select,
+  textarea,
+  .field input,
+  .field select,
+  .field textarea,
+  .search-field input,
+  .comment-form textarea,
+  .invite-result input {
+    font-size: 16px !important;
+  }
+
+  .notification-inline-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 979px) {
+  /* 100lvh reste stable quand le clavier iOS apparaît : la barre ne remonte plus au milieu */
+  @supports (height: 100lvh) {
+    .bottom-nav {
+      top: calc(100lvh - 80px - var(--safe-bottom));
+      bottom: auto;
+      transform: translate3d(-50%, 0, 0);
+      will-change: transform;
+    }
+  }
+
+  .bottom-nav {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform-style: preserve-3d;
+  }
+}

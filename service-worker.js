@@ -1,12 +1,12 @@
-const CACHE_NAME = 'agenda-shell-v3.6.0';
+const CACHE_NAME = 'agenda-shell-v3.7.0';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=3.6.0',
+  './styles.css?v=3.7.0',
   './manifest.json',
-  './js/app.js?v=3.6.0',
-  './js/store.js?v=3.6.0',
-  './js/push-config.js?v=3.6.0',
+  './js/app.js?v=3.7.0',
+  './js/store.js?v=3.7.0',
+  './js/push-config.js?v=3.7.0',
   './assets/brand/logo-horizontal.svg',
   './assets/brand/logo-symbol.svg',
   './assets/brand/logo-symbol-light.svg',
@@ -116,7 +116,27 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || './', self.registration.scope).href;
+  const data = event.notification.data || {};
+  let relativeTarget = data.url || './';
+
+  if (event.action === 'snooze' && data.entityType && data.entityId) {
+    const params = new URLSearchParams({
+      notificationAction: 'snooze',
+      entityType: String(data.entityType),
+      entityId: String(data.entityId),
+      minutes: String(data.snoozeMinutes || 30)
+    });
+    relativeTarget = `./?${params.toString()}`;
+  } else if (event.action === 'complete-task' && data.entityId) {
+    const params = new URLSearchParams({
+      notificationAction: 'completeTask',
+      entityType: 'task',
+      entityId: String(data.entityId)
+    });
+    relativeTarget = `./?${params.toString()}`;
+  }
+
+  const target = new URL(relativeTarget, self.registration.scope).href;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
       for (const client of clients) {

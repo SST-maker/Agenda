@@ -8,17 +8,32 @@ type Candidate = {
   p256dh: string
   auth: string
   delivery_key: string
-  kind: 'event' | 'task' | 'summary'
+  kind: 'event' | 'task' | 'summary' | 'routine' | 'change' | 'departure' | 'overdue' | 'snooze'
   title: string
   body: string
   url: string
   tag: string
+  entity_type: 'event' | 'task' | 'routine' | null
+  entity_id: string | null
+  snooze_minutes: number | null
 }
 
 const required = (name: string) => {
   const value = Deno.env.get(name)
   if (!value) throw new Error(`Secret manquant: ${name}`)
   return value
+}
+
+const actionsFor = (item: Candidate) => {
+  const actions: Array<{ action: string; title: string }> = []
+  const canSnooze = Boolean(item.entity_type && item.entity_id && ['event', 'task', 'routine', 'departure', 'overdue', 'snooze'].includes(item.kind))
+  if (item.entity_type === 'task' && ['task', 'overdue', 'snooze'].includes(item.kind)) {
+    actions.push({ action: 'complete-task', title: 'Terminer' })
+  }
+  if (canSnooze && actions.length < 2) {
+    actions.push({ action: 'snooze', title: `Reporter ${item.snooze_minutes || 30} min` })
+  }
+  return actions
 }
 
 export default {
@@ -40,7 +55,7 @@ export default {
           serverKey = parsed.default || Object.values(parsed)[0] || ''
         } catch { /* legacy key fallback below */ }
       }
-      if (!serverKey) throw new Error('Secret serveur Supabase indisponible.')
+      if (!serverKey) throw new Error('Secret serveur Supabase indisponible')
 
       const vapidPublic = required('VAPID_PUBLIC_KEY')
       const vapidPrivate = required('VAPID_PRIVATE_KEY')
@@ -69,7 +84,14 @@ export default {
           body: item.body,
           url: item.url,
           tag: item.tag,
-          data: { kind: item.kind }
+          renotify: ['change', 'overdue'].includes(item.kind),
+          actions: actionsFor(item),
+          data: {
+            kind: item.kind,
+            entityType: item.entity_type,
+            entityId: item.entity_id,
+            snoozeMinutes: item.snooze_minutes || 30
+          }
         })
 
         try {

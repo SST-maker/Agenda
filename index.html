@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#F6EED8">
   <meta name="description" content="AGENDA, l'organisation familiale partagée, fluide et apaisée.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net; manifest-src 'self'; worker-src 'self';">
@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=3.6.0">
+  <link rel="stylesheet" href="styles.css?v=3.7.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -63,7 +63,7 @@
       <img class="auth-logo" src="assets/brand/logo-horizontal.svg" alt="AGENDA">
       <div class="auth-intro">
         <p class="eyebrow">Agenda familial privé</p>
-        <h1 id="authTitle">Votre famille,<br>au même rythme.</h1>
+        <h1 id="authTitle">Votre famille,<br>au même rythme</h1>
         <p id="authSubtitle">Connectez-vous pour retrouver l’agenda partagé.</p>
       </div>
 
@@ -175,7 +175,7 @@
         <div class="welcome-row reveal">
           <div>
             <p class="eyebrow" id="todayEyebrow">Mercredi 5 août</p>
-            <h1><span id="greeting">Bonsoir</span>, <span id="familyGreeting">Famille Hamadi</span>.</h1>
+            <h1><span id="greeting">Bonsoir</span>, <span id="familyGreeting">Famille Hamadi</span></h1>
           </div>
           <button class="date-orbit tap" id="goTodayButton" aria-label="Revenir à aujourd'hui">
             <span class="date-orbit-ring"></span>
@@ -188,7 +188,7 @@
           <div class="hero-glow"></div>
           <div class="hero-content">
             <p class="hero-kicker"><svg><use href="#i-sparkles"></use></svg> Le rythme familial</p>
-            <h2 id="heroTitle">Votre journée à construire,<br><em>ensemble et simplement.</em></h2>
+            <h2 id="heroTitle">Votre journée à construire,<br><em>ensemble et simplement</em></h2>
             <p class="hero-summary" id="heroSummary">Une vue claire de ce qui compte aujourd’hui.</p>
             <div class="hero-pulse">
               <div class="pulse-copy"><strong id="heroEventCount">0 rendez-vous</strong><span>planifiés aujourd’hui</span></div>
@@ -232,7 +232,7 @@
 
         <section class="family-feed-card reveal" aria-labelledby="familyFeedTitle">
           <header class="family-feed-header">
-            <div><p class="eyebrow">Fil de la famille</p><h2 id="familyFeedTitle">Tout ce qui compte, au même endroit.</h2></div>
+            <div><p class="eyebrow">Fil de la famille</p><h2 id="familyFeedTitle">Tout ce qui compte, au même endroit</h2></div>
             <span class="family-feed-count" id="familyFeedCount">Journée légère</span>
           </header>
           <div class="family-feed-list" id="familyFeedList"></div>
@@ -242,7 +242,7 @@
           <header class="tasks-home-header">
             <div>
               <p class="eyebrow">À faire aujourd’hui</p>
-              <h2 id="tasksHomeTitle">Les petites choses qui comptent.</h2>
+              <h2 id="tasksHomeTitle">Les petites choses qui comptent</h2>
             </div>
             <button class="round-action tap" id="quickAddTaskButton" aria-label="Ajouter une tâche"><svg><use href="#i-plus"></use></svg></button>
           </header>
@@ -265,7 +265,7 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">Cette semaine</p>
-              <h2 id="weekTitle">Glisse dans le temps.</h2>
+              <h2 id="weekTitle">Glisse dans le temps</h2>
             </div>
             <div class="week-controls">
               <button class="icon-button mini tap" id="previousWeek" aria-label="Semaine précédente"><svg><use href="#i-chevron-left"></use></svg></button>
@@ -279,7 +279,7 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow" id="selectedDateLabel">Aujourd’hui</p>
-              <h2 id="timelineTitle">Le fil de la journée.</h2>
+              <h2 id="timelineTitle">Le fil de la journée</h2>
             </div>
             <button class="round-action tap" id="quickAddButton" aria-label="Ajouter un événement"><svg><use href="#i-plus"></use></svg></button>
           </div>
@@ -306,7 +306,7 @@
         <div class="page-heading reveal">
           <div>
             <p class="eyebrow">Vue panoramique</p>
-            <h1 id="agendaTitle">L’agenda, autrement.</h1>
+            <h1 id="agendaTitle">L’agenda, autrement</h1>
             <p>Du flux quotidien au mois complet, gardez toute la famille en vue.</p>
           </div>
           <button class="round-action large tap" data-open-event aria-label="Créer un événement"><svg><use href="#i-plus"></use></svg></button>
@@ -330,7 +330,7 @@
         <div class="page-heading reveal">
           <div>
             <p class="eyebrow">Votre cercle</p>
-            <h1 id="familyTitle"><span id="familySymbolTitle">🌿</span> <span id="familyNameTitle">Famille Hamadi</span><br><small>Chacun son rythme. Une seule harmonie.</small></h1>
+            <h1 id="familyTitle"><span id="familySymbolTitle">🌿</span> <span id="familyNameTitle">Famille Hamadi</span><br><small>Chacun son rythme. Une seule harmonie</small></h1>
           </div>
           <button class="icon-button tap" id="addMemberButton" aria-label="Ajouter un membre"><svg><use href="#i-plus"></use></svg></button>
         </div>
@@ -355,7 +355,7 @@
           </div>
           <div>
             <p class="card-kicker">Pouls familial</p>
-            <h2>Tout le monde est aligné.</h2>
+            <h2>Tout le monde est aligné</h2>
             <p id="familyPulseCopy">Aucun conflit détecté dans les prochaines 48 heures.</p>
           </div>
         </section>
@@ -367,14 +367,14 @@
         <div class="page-heading reveal">
           <div>
             <p class="eyebrow">Espace calme</p>
-            <h1 id="focusTitle">Moins de bruit.<br>Plus de présence.</h1>
+            <h1 id="focusTitle">Moins de bruit<br>Plus de présence</h1>
           </div>
         </div>
 
         <section class="calm-card reveal">
           <div class="calm-sun"><svg><use href="#i-sun"></use></svg></div>
           <p class="card-kicker">Temps pour soi</p>
-          <h2 id="calmHeadline">Votre prochain vrai moment libre commence à 20 h 30.</h2>
+          <h2 id="calmHeadline">Votre prochain vrai moment libre commence à 20 h 30</h2>
           <p id="calmBody">AGENDA protège automatiquement les respirations entre les obligations.</p>
           <button class="primary-button tap" id="protectMomentButton">Protéger ce moment</button>
         </section>
@@ -560,10 +560,18 @@
         <button class="primary-button tap" id="enableNotificationsButton" type="button">Activer</button>
       </section>
       <div class="notification-options">
-        <label class="notification-option"><div><strong>Rappels de rendez-vous</strong><span>Selon le délai choisi dans chaque événement.</span></div><span class="switch"><input type="checkbox" id="eventRemindersToggle"><span></span></span></label>
-        <label class="notification-option"><div><strong>Rappels de tâches</strong><span>Préviens la personne responsable avant l’échéance.</span></div><span class="switch"><input type="checkbox" id="taskRemindersToggle"><span></span></span></label>
-        <label class="notification-option"><div><strong>Résumé du matin</strong><span>Un aperçu simple de la journée familiale.</span></div><span class="switch"><input type="checkbox" id="dailySummaryToggle"><span></span></span></label>
-        <label class="field notification-time-field"><span>Heure du résumé</span><input type="time" id="dailySummaryTime" value="07:30"></label>
+        <label class="notification-option"><div><strong>Rappels de rendez-vous</strong><span>Selon le délai choisi dans chaque événement</span></div><span class="switch"><input type="checkbox" id="eventRemindersToggle"><span></span></span></label>
+        <label class="notification-option"><div><strong>Rappels de tâches</strong><span>Prévient uniquement la personne responsable</span></div><span class="switch"><input type="checkbox" id="taskRemindersToggle"><span></span></span></label>
+        <label class="notification-option"><div><strong>Rappels de routines</strong><span>Les habitudes du jour arrivent au bon moment</span></div><span class="switch"><input type="checkbox" id="routineRemindersToggle"><span></span></span></label>
+        <label class="notification-option"><div><strong>Modifications et annulations</strong><span>Préviens les membres concernés quand quelque chose change</span></div><span class="switch"><input type="checkbox" id="changeAlertsToggle"><span></span></span></label>
+        <label class="notification-option"><div><strong>Rappel de départ</strong><span>Pour les rendez-vous qui ont un lieu</span></div><span class="switch"><input type="checkbox" id="departureRemindersToggle"><span></span></span></label>
+        <label class="field notification-time-field"><span>Prévenir avant le départ</span><select id="departureMinutesSelect"><option value="10">10 min</option><option value="20" selected>20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 h</option></select></label>
+        <label class="notification-option"><div><strong>Tâches non terminées</strong><span>Relance une tâche encore en attente après son échéance</span></div><span class="switch"><input type="checkbox" id="overdueTaskRemindersToggle"><span></span></span></label>
+        <label class="notification-option"><div><strong>Résumé du matin</strong><span>Prochain rendez-vous, tâches, routines et courses</span></div><span class="switch"><input type="checkbox" id="dailySummaryToggle"><span></span></span></label>
+        <div class="notification-inline-fields">
+          <label class="field notification-time-field"><span>Heure du résumé</span><input type="time" id="dailySummaryTime" value="07:30"></label>
+          <label class="field notification-time-field"><span>Bouton Reporter</span><select id="snoozeMinutesSelect"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="60">1 h</option></select></label>
+        </div>
       </div>
       <div class="notification-footer-actions">
         <button class="secondary-button tap" id="testNotificationButton" type="button"><svg><use href="#i-bell"></use></svg>Tester</button>
@@ -605,7 +613,7 @@
     <section class="account-sheet search-sheet">
       <div class="sheet-handle"></div>
       <header class="sheet-header">
-        <div><p class="eyebrow">Recherche familiale</p><h2 id="searchTitle">Tout retrouver.</h2></div>
+        <div><p class="eyebrow">Recherche familiale</p><h2 id="searchTitle">Tout retrouver</h2></div>
         <button type="button" class="icon-button tap" data-close-search aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
       </header>
       <label class="search-field"><svg><use href="#i-search"></use></svg><input id="globalSearchInput" type="search" autocomplete="off" placeholder="Rendez-vous, tâche, course, commentaire…"></label>
@@ -693,6 +701,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=3.6.0"></script>
+  <script type="module" src="js/app.js?v=3.7.0"></script>
 </body>
 </html>
