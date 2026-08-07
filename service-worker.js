@@ -1,12 +1,12 @@
-const CACHE_NAME = 'agenda-shell-v3.8.0';
+const CACHE_NAME = 'agenda-shell-v4.0.0';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=3.8.0',
+  './styles.css?v=4.0.0',
   './manifest.json',
-  './js/app.js?v=3.8.0',
-  './js/store.js?v=3.8.0',
-  './js/push-config.js?v=3.8.0',
+  './js/app.js?v=4.0.0',
+  './js/store.js?v=4.0.0',
+  './js/push-config.js?v=4.0.0',
   './assets/brand/logo-horizontal.svg',
   './assets/brand/logo-symbol.svg',
   './assets/brand/logo-symbol-light.svg',
@@ -95,7 +95,7 @@ self.addEventListener('fetch', (event) => {
 });
 
 
-// Notifications Web Push AGENDA v3.5
+// Notifications Web Push AGENDA — compatibles v4.0
 self.addEventListener('push', (event) => {
   let payload = {};
   try { payload = event.data?.json() || {}; }

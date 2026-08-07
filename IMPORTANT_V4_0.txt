@@ -1,0 +1,8 @@
+AGENDA v4.0 — PREMIUM UX
+
+AUCUN SQL À EXÉCUTER
+
+Pour une mise à jour de ton agenda existant, utilise AGENDA_v4.0_UPDATE_EXISTING.zip.
+Le pack de mise à jour exclut js/config.js et js/push-config.js afin de préserver tes réglages actuels.
+
+Après GitHub Pages : ferme complètement la PWA puis rouvre-la une fois si tu vois encore l’ancien style, afin que le nouveau Service Worker v4.0 prenne la main.

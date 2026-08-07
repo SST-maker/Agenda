@@ -96,3 +96,11 @@ La v3.5 ajoute la liste de courses partagée, les routines familiales et un fil 
 
 ## v3.6 — Collaboration
 La v3.6 ajoute un espace partagé aux rendez-vous et tâches : commentaires, réactions, accusés de lecture, pièces jointes privées, historique et recherche globale. Pour une installation déjà en v3.5, utiliser `supabase/upgrade_v3_6_collaboration.sql`.
+
+## v3.7 — Notifications avancées et stabilité iPhone
+La v3.7 ajoute les alertes de modification/annulation, les rappels de départ, routines et tâches en retard, le résumé du matin personnalisé, les actions Reporter/Terminer depuis les notifications, ainsi que les corrections de zoom clavier et de barre de navigation mobile. Voir `MISE_A_JOUR_V3_7.md`.
+
+
+## v4.0 — Premium UX
+
+Cette version finalise le rendu sans ajouter de nouveau module métier : surfaces vitrées cohérentes, transitions plus naturelles, micro-interactions tactiles, navigation basse raffinée, dialogues plus fluides, thème sombre harmonisé et respect de `prefers-reduced-motion`. Aucun nouveau SQL n’est requis.

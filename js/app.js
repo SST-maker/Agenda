@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.8.0';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.8.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=4.0.0';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=4.0.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -200,6 +200,11 @@ function resolvedTheme(choice = 'system') {
 function applyUserPreferences(data = store.getState()) {
   const choice = data.settings?.theme || 'system';
   const theme = resolvedTheme(choice);
+  const themeChanged = document.documentElement.dataset.theme && document.documentElement.dataset.theme !== theme;
+  if (themeChanged && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    document.documentElement.classList.add('theme-transitioning');
+    window.setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 380);
+  }
   document.documentElement.dataset.theme = theme;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#101816' : '#F6EED8');
   const widgets = data.settings?.homeWidgets || {};
@@ -729,7 +734,8 @@ function switchView(view) {
   state.activeView = view;
   $$('.view').forEach((section) => section.classList.toggle('is-active', section.dataset.viewSection === view));
   $$('.nav-item').forEach((button) => button.classList.toggle('is-active', button.dataset.view === view));
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  requestAnimationFrame(() => replayActiveViewPremiumEntrance(view));
   vibration();
 }
 
@@ -1348,6 +1354,85 @@ function setupMobileViewportStability() {
   document.addEventListener('focusout', () => setTimeout(sync, 250));
   window.addEventListener('orientationchange', () => setTimeout(sync, 300));
   sync();
+}
+
+
+function premiumAnimateNode(node, delay = 0) {
+  if (!(node instanceof Element) || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  if (node.classList.contains('premium-enter')) return;
+  node.style.setProperty('--premium-delay', `${Math.min(delay, 180)}ms`);
+  node.classList.add('premium-enter');
+}
+
+function premiumAnimateContainer(container) {
+  if (!(container instanceof Element)) return;
+  const selector = '.hero-card, .quick-action-card, .family-tool-card, .family-feed-card, .tasks-home-card, .event-card, .task-card, .family-card, .memory-card, .month-shell, .month-selection, .settings-group, .setup-progress-card, .collaboration-entry, .empty-state';
+  const nodes = [];
+  if (container.matches?.(selector)) nodes.push(container);
+  nodes.push(...container.querySelectorAll?.(selector) || []);
+  nodes.slice(0, 20).forEach((node, index) => premiumAnimateNode(node, index * 24));
+}
+
+function replayActiveViewPremiumEntrance(view = state.activeView) {
+  const section = document.querySelector(`[data-view-section="${view}"]`);
+  if (!section || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const nodes = [...section.querySelectorAll('.hero-card, .quick-action-card, .family-tool-card, .family-feed-card, .tasks-home-card, .event-card, .task-card, .family-card, .memory-card, .month-shell, .month-selection')].slice(0, 18);
+  nodes.forEach((node) => node.classList.remove('premium-enter'));
+  requestAnimationFrame(() => nodes.forEach((node, index) => premiumAnimateNode(node, index * 24)));
+}
+
+function setupPremiumUX() {
+  const reducedMotion = () => Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  let scrollFrame = 0;
+  const syncScrollState = () => {
+    scrollFrame = 0;
+    document.body.classList.toggle('is-scrolled', window.scrollY > 8);
+  };
+  window.addEventListener('scroll', () => {
+    if (!scrollFrame) scrollFrame = requestAnimationFrame(syncScrollState);
+  }, { passive: true });
+  syncScrollState();
+
+  const releasePressed = () => $$('.is-pressed').forEach((element) => element.classList.remove('is-pressed'));
+  document.addEventListener('pointerdown', (event) => {
+    const target = event.target.closest('.tap, .primary-button, .secondary-button, .quick-action-card, .family-tool-card, .nav-item, .nav-add');
+    if (!target || target.disabled || target.getAttribute('aria-disabled') === 'true') return;
+    target.classList.add('is-pressed');
+    if (reducedMotion()) return;
+    const rect = target.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const ripple = document.createElement('span');
+    ripple.className = 'premium-ripple';
+    ripple.style.setProperty('--ripple-x', `${event.clientX - rect.left}px`);
+    ripple.style.setProperty('--ripple-y', `${event.clientY - rect.top}px`);
+    target.classList.add('premium-ripple-host');
+    target.append(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+  }, { passive: true });
+  document.addEventListener('pointerup', releasePressed, { passive: true });
+  document.addEventListener('pointercancel', releasePressed, { passive: true });
+  window.addEventListener('blur', releasePressed);
+
+  const valueIds = new Set(['heroEventCount','shoppingShortcutCount','routineShortcutCount','familyFeedCount','tasksHomeSummary']);
+  const valueObserver = new MutationObserver((records) => {
+    if (reducedMotion()) return;
+    for (const record of records) {
+      const element = record.target.nodeType === Node.TEXT_NODE ? record.target.parentElement : record.target;
+      const target = element?.closest?.('[id]');
+      if (!target || !valueIds.has(target.id)) continue;
+      target.classList.remove('premium-value-pop');
+      requestAnimationFrame(() => target.classList.add('premium-value-pop'));
+    }
+  });
+  valueIds.forEach((id) => { const element = document.getElementById(id); if (element) valueObserver.observe(element, { childList:true, characterData:true, subtree:true }); });
+
+  const contentObserver = new MutationObserver((records) => {
+    for (const record of records) {
+      record.addedNodes.forEach((node) => { if (node instanceof Element) premiumAnimateContainer(node); });
+    }
+  });
+  contentObserver.observe(document.body, { childList:true, subtree:true });
+  premiumAnimateContainer(document.querySelector('.view.is-active'));
 }
 
 function showToast(message) {
@@ -2104,6 +2189,7 @@ async function bootstrap() {
   setupEvents();
   setupPWA();
   setupMobileViewportStability();
+  setupPremiumUX();
   render();
   updateConnection();
   const auth = await store.init();

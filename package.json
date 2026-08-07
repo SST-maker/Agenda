@@ -1,8 +1,8 @@
 {
   "name": "agenda-familial-supabase-github",
-  "version": "3.8.0",
+  "version": "4.0.0",
   "private": true,
-  "description": "PWA privée d'agenda familial partagé, hébergée sur GitHub Pages et synchronisée avec Supabase.",
+  "description": "PWA premium privée d’agenda familial partagé, hébergée sur GitHub Pages et synchronisée avec Supabase.",
   "type": "commonjs",
   "scripts": {
     "check": "node scripts/check-project.js",
