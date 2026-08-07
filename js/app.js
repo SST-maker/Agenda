@@ -1,4 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.3.1';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.4.0';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.4.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -10,6 +11,9 @@ const state = {
   selectedDate: toISO(new Date()),
   weekAnchor: startOfWeek(new Date()),
   agendaMode: 'flow',
+  taskFilter: 'today',
+  deepLinkEvent: new URLSearchParams(location.search).get('event') || '',
+  deepLinkTask: new URLSearchParams(location.search).get('task') || '',
   deferredInstallPrompt: null,
   authMode: 'login'
 };
@@ -82,6 +86,17 @@ function eventsForDate(data, date, memberId = state.activeMember) {
 function memberById(data, id) { return data.members.find((member) => member.id === id); }
 function memberDisplayName(member) { return member?.nickname || member?.name || 'Membre'; }
 function familyDisplayName(data) { return data.family?.name || 'La famille'; }
+function taskResponsible(data, task) { return task.responsibleMemberId ? memberById(data, task.responsibleMemberId) : null; }
+function tasksForMember(data, memberId = state.activeMember) {
+  return (data.tasks || []).filter((task) => memberId === 'all' || !task.responsibleMemberId || task.responsibleMemberId === memberId);
+}
+function taskDueLabel(task) {
+  const today = toISO(new Date());
+  if (task.dueDate < today) return `En retard${task.dueTime ? ` · ${task.dueTime}` : ''}`;
+  if (task.dueDate === today) return task.dueTime ? `Aujourd’hui · ${task.dueTime}` : 'Aujourd’hui';
+  const date = parseISO(task.dueDate);
+  return `${capitalize(shortWeekday.format(date).replace('.', ''))} ${date.getDate()}${task.dueTime ? ` · ${task.dueTime}` : ''}`;
+}
 function birthdayMembersForDate(data, iso) {
   const md = iso.slice(5);
   return data.members.filter((member) => member.birthday && member.birthday.slice(5) === md);
@@ -102,6 +117,7 @@ function render() {
   const data = store.getState();
   renderHeader(data);
   renderMemberFilter(data);
+  renderTasksHome(data);
   renderDayRibbon(data);
   renderTimeline(data);
   renderInsights(data);
@@ -110,6 +126,7 @@ function render() {
   renderFamilyCover(data);
   renderFocus(data);
   renderDialogMembers(data);
+  renderNotificationIndicator(data);
 }
 
 function renderHeader(data) {
@@ -134,7 +151,9 @@ function renderHeader(data) {
   else $('#heroTitle').innerHTML = `${count} moments aujourd’hui.<br><em>Tout est sous contrôle.</em>`;
 
   const perMember = data.members.map((member) => ({ member, count: todayEvents.filter((event) => event.memberIds.includes(member.id)).length }));
-  $('#heroSummary').textContent = perMember.map(({ member, count: memberCount }) => `${memberDisplayName(member)} : ${memberCount ? `${memberCount} prévu${memberCount > 1 ? 's' : ''}` : 'libre'}`).join(' · ');
+  const pendingTasksToday = (data.tasks || []).filter((task) => task.status !== 'done' && task.dueDate <= todayIso).length;
+  const memberSummary = perMember.map(({ member, count: memberCount }) => `${memberDisplayName(member)} : ${memberCount ? `${memberCount} prévu${memberCount > 1 ? 's' : ''}` : 'libre'}`).join(' · ');
+  $('#heroSummary').textContent = `${memberSummary}${pendingTasksToday ? ` · ${pendingTasksToday} tâche${pendingTasksToday > 1 ? 's' : ''} à faire` : ''}`;
 
   const nextEvent = nextUpcomingEvent(data);
   $('#heroNextMoment').textContent = nextEvent ? `Prochain : ${nextEvent.title} · ${nextEvent.allDay ? 'journée' : nextEvent.time}` : 'Aucun prochain rendez-vous';
@@ -150,6 +169,43 @@ function renderMemberFilter(data) {
       ${renderAvatar(member)}${escapeHTML(memberDisplayName(member))}
     </button>`).join('');
   $('#memberFilter').innerHTML = all + members;
+}
+
+function taskCard(task, data, compact = false) {
+  const responsible = taskResponsible(data, task);
+  const overdue = task.status !== 'done' && task.dueDate < toISO(new Date());
+  return `<article class="task-card ${compact ? 'is-compact' : ''} ${task.status === 'done' ? 'is-done' : ''} ${overdue ? 'is-overdue' : ''}" data-task-id="${task.id}">
+    <button class="task-check tap" type="button" data-toggle-task="${task.id}" aria-label="${task.status === 'done' ? 'Rouvrir' : 'Terminer'} ${escapeHTML(task.title)}">${task.status === 'done' ? icon('check') : ''}</button>
+    <div class="task-main">
+      <div class="task-title-row"><strong>${escapeHTML(task.title)}</strong>${task.priority === 'high' ? '<span class="task-priority">Important</span>' : ''}</div>
+      <div class="task-meta"><span>${icon('clock')}${escapeHTML(taskDueLabel(task))}</span>${responsible ? `<span>${renderAvatar(responsible, { className: 'task-avatar' })}${escapeHTML(memberDisplayName(responsible))}</span>` : `<span>${icon('users')}Toute la famille</span>`}</div>
+    </div>
+    <button class="task-more tap" type="button" data-edit-task="${task.id}" aria-label="Modifier ${escapeHTML(task.title)}">${icon('more')}</button>
+  </article>`;
+}
+
+function renderTasksHome(data) {
+  const today = toISO(new Date());
+  const tasks = tasksForMember(data).filter((task) => task.status !== 'done' && task.dueDate <= today).sort((a,b) => `${a.dueDate}${a.dueTime || '23:59'}`.localeCompare(`${b.dueDate}${b.dueTime || '23:59'}`));
+  const overdue = tasks.filter((task) => task.dueDate < today).length;
+  $('#tasksHomeSummary').innerHTML = `<span><strong>${tasks.length}</strong> à faire</span>${overdue ? `<span class="is-alert"><strong>${overdue}</strong> en retard</span>` : '<span><strong>✓</strong> à jour</span>'}`;
+  $('#tasksHomeList').innerHTML = tasks.length
+    ? tasks.slice(0, 3).map((task) => taskCard(task, data, true)).join('')
+    : `<div class="tasks-empty-mini"><span>${icon('circle-check')}</span><div><strong>Tout est fait.</strong><p>Rien ne presse pour aujourd’hui.</p></div></div>`;
+}
+
+function tasksForFilter(data, filter = state.taskFilter) {
+  const today = toISO(new Date());
+  const tasks = tasksForMember(data);
+  if (filter === 'done') return tasks.filter((task) => task.status === 'done').sort((a,b) => String(b.completedAt || '').localeCompare(String(a.completedAt || '')));
+  if (filter === 'upcoming') return tasks.filter((task) => task.status !== 'done' && task.dueDate > today).sort((a,b) => `${a.dueDate}${a.dueTime || '23:59'}`.localeCompare(`${b.dueDate}${b.dueTime || '23:59'}`));
+  return tasks.filter((task) => task.status !== 'done' && task.dueDate <= today).sort((a,b) => `${a.dueDate}${a.dueTime || '23:59'}`.localeCompare(`${b.dueDate}${b.dueTime || '23:59'}`));
+}
+
+function renderTasksDialog(data = store.getState()) {
+  $$('[data-task-filter]').forEach((button) => button.classList.toggle('is-active', button.dataset.taskFilter === state.taskFilter));
+  const tasks = tasksForFilter(data);
+  $('#tasksDialogList').innerHTML = tasks.length ? tasks.map((task) => taskCard(task, data)).join('') : `<div class="empty-state"><strong>Aucune tâche ici.</strong><p>Votre famille est à jour dans cette catégorie.</p><button class="primary-button tap" data-open-task>${icon('plus')}Ajouter une tâche</button></div>`;
 }
 
 function renderDayRibbon(data) {
@@ -407,6 +463,7 @@ function renderFocus(data) {
 function renderDialogMembers(data) {
   $('#dialogMemberPicker').innerHTML = data.members.map((member, index) => `<label class="member-check"><input type="checkbox" name="memberIds" value="${member.id}" ${index === 0 ? 'checked' : ''}><span>${renderAvatar(member, { className: 'avatar' })}${escapeHTML(memberDisplayName(member))}</span></label>`).join('');
   $('#responsibleMemberSelect').innerHTML = `<option value="">Pas de responsable précis</option>` + data.members.map((member) => `<option value="${member.id}">${escapeHTML(memberDisplayName(member))}</option>`).join('');
+  $('#taskResponsibleMemberSelect').innerHTML = `<option value="">Toute la famille</option>` + data.members.map((member) => `<option value="${member.id}">${escapeHTML(memberDisplayName(member))}</option>`).join('');
 }
 
 function switchView(view) {
@@ -442,6 +499,7 @@ function openEventDialog(eventId = null) {
   form.elements.time.value = new Date().toTimeString().slice(0, 5);
   form.elements.allDay.checked = false;
   form.elements.recurrence.value = 'none';
+  form.elements.reminderMinutes.value = '60';
   form.elements.recurrenceUntil.value = toISO(addDays(parseISO(state.selectedDate), 90));
   $('#recurrenceUntilField').hidden = true;
   $('#seriesEditNote').hidden = true;
@@ -464,6 +522,7 @@ function openEventDialog(eventId = null) {
     form.elements.notes.value = item.notes || '';
     form.elements.allDay.checked = Boolean(item.allDay);
     form.elements.responsibleMemberId.value = item.responsibleMemberId || '';
+    form.elements.reminderMinutes.value = item.reminderMinutes === null || item.reminderMinutes === undefined ? '' : String(item.reminderMinutes);
     form.elements.recurrence.value = 'none';
     $('#seriesEditNote').hidden = !item.seriesId;
     $('#deleteSeriesButton').hidden = !item.seriesId;
@@ -537,6 +596,7 @@ function handleEventSubmit(event) {
     location: String(form.get('location')).trim(),
     notes: String(form.get('notes')).trim(),
     responsibleMemberId: String(form.get('responsibleMemberId') || ''),
+    reminderMinutes: form.get('reminderMinutes') === '' ? null : Number(form.get('reminderMinutes')),
     memberIds
   };
 
@@ -578,6 +638,191 @@ function deleteCurrentSeries() {
   store.deleteSeries(item.seriesId);
   closeEventDialog();
   showToast('Toute la série a été supprimée.');
+}
+
+function openTasksDialog() {
+  renderTasksDialog();
+  $('#tasksDialog').showModal();
+  vibration();
+}
+function closeTasksDialog() { if ($('#tasksDialog').open) $('#tasksDialog').close(); }
+
+function openTaskDialog(taskId = null) {
+  const dialog = $('#taskDialog');
+  const form = $('#taskForm');
+  const data = store.getState();
+  form.reset();
+  renderDialogMembers(data);
+  form.elements.taskId.value = '';
+  form.elements.dueDate.value = state.selectedDate || toISO(new Date());
+  form.elements.reminderMinutes.value = '60';
+  $('#taskDialogTitle').textContent = 'Ajouter une tâche';
+  $('#taskSubmitButton').innerHTML = `Ajouter la tâche ${icon('check')}`;
+  $('#deleteTaskButton').hidden = true;
+  if (taskId) {
+    const task = data.tasks.find((item) => item.id === taskId);
+    if (!task) return;
+    form.elements.taskId.value = task.id;
+    form.elements.title.value = task.title;
+    form.elements.dueDate.value = task.dueDate;
+    form.elements.dueTime.value = task.dueTime || '';
+    form.elements.priority.value = task.priority || 'normal';
+    form.elements.responsibleMemberId.value = task.responsibleMemberId || '';
+    form.elements.reminderMinutes.value = task.reminderMinutes === null || task.reminderMinutes === undefined ? '' : String(task.reminderMinutes);
+    form.elements.notes.value = task.notes || '';
+    $('#taskDialogTitle').textContent = 'Modifier la tâche';
+    $('#taskSubmitButton').innerHTML = `Enregistrer ${icon('check')}`;
+    $('#deleteTaskButton').hidden = false;
+  }
+  closeTasksDialog();
+  dialog.showModal();
+  requestAnimationFrame(() => form.elements.title.focus());
+  vibration();
+}
+function closeTaskDialog() { if ($('#taskDialog').open) $('#taskDialog').close(); }
+
+function handleTaskSubmit(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const taskId = String(form.get('taskId') || '');
+  const payload = {
+    title: String(form.get('title') || '').trim(),
+    dueDate: String(form.get('dueDate') || ''),
+    dueTime: String(form.get('dueTime') || ''),
+    priority: String(form.get('priority') || 'normal'),
+    responsibleMemberId: String(form.get('responsibleMemberId') || ''),
+    reminderMinutes: form.get('reminderMinutes') === '' ? null : Number(form.get('reminderMinutes')),
+    notes: String(form.get('notes') || '').trim(),
+    status: taskId ? (store.getState().tasks.find((task) => task.id === taskId)?.status || 'pending') : 'pending'
+  };
+  if (!payload.title || !payload.dueDate) return;
+  if (taskId) { store.updateTask(taskId, payload); showToast('Tâche mise à jour.'); }
+  else { store.addTask(payload); showToast('Tâche ajoutée à la famille.'); }
+  closeTaskDialog();
+  renderTasksDialog();
+}
+
+function deleteCurrentTask() {
+  const id = $('#taskForm').elements.taskId.value;
+  const task = store.getState().tasks.find((item) => item.id === id);
+  if (!task || !confirm(`Supprimer « ${task.title} » ?`)) return;
+  store.deleteTask(id);
+  closeTaskDialog();
+  showToast('Tâche supprimée.');
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+function notificationsSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && Boolean(VAPID_PUBLIC_KEY);
+}
+
+async function currentPushSubscription() {
+  if (!notificationsSupported()) return null;
+  const registration = await navigator.serviceWorker.ready;
+  return registration.pushManager.getSubscription();
+}
+
+function renderNotificationIndicator(data = store.getState()) {
+  const dot = $('#notificationStatusDot');
+  if (!dot) return;
+  const permission = 'Notification' in window ? Notification.permission : 'unsupported';
+  const enabled = Boolean(data.notificationPreferences?.pushEnabled && permission === 'granted');
+  dot.classList.toggle('is-active', enabled);
+  dot.classList.toggle('is-blocked', permission === 'denied');
+  $('#notificationSettingCopy').textContent = enabled ? 'Rappels actifs sur cet appareil.' : permission === 'denied' ? 'Notifications bloquées dans les réglages du navigateur.' : 'Rappels de rendez-vous, tâches et résumé du matin.';
+}
+
+async function renderNotificationDialog() {
+  const data = store.getState();
+  const prefs = data.notificationPreferences || {};
+  $('#eventRemindersToggle').checked = prefs.eventReminders !== false;
+  $('#taskRemindersToggle').checked = prefs.taskReminders !== false;
+  $('#dailySummaryToggle').checked = prefs.dailySummary !== false;
+  $('#dailySummaryTime').value = prefs.dailySummaryTime || '07:30';
+  const supported = notificationsSupported();
+  const permission = supported ? Notification.permission : 'unsupported';
+  let subscription = null;
+  if (supported && permission === 'granted') { try { subscription = await currentPushSubscription(); } catch { subscription = null; } }
+  const active = Boolean(subscription);
+  $('#notificationHero').classList.toggle('is-active', active);
+  $('#notificationHeroTitle').textContent = !supported ? 'Notifications non disponibles' : permission === 'denied' ? 'Notifications bloquées' : active ? 'Notifications activées' : 'Activer les notifications';
+  $('#notificationHeroCopy').textContent = !supported
+    ? 'Installe AGENDA comme application sur un appareil compatible pour utiliser les rappels système.'
+    : permission === 'denied' ? 'Autorise AGENDA dans les réglages du navigateur ou de l’iPhone, puis reviens ici.'
+    : active ? 'Cet appareil peut recevoir les rappels même quand AGENDA n’est pas ouvert.'
+    : 'AGENDA peut prévenir les bonnes personnes au bon moment.';
+  $('#enableNotificationsButton').textContent = active ? 'Désactiver' : 'Activer';
+  $('#enableNotificationsButton').disabled = !supported || permission === 'denied';
+  $('#testNotificationButton').disabled = !active;
+  $('#notificationSupportNote').textContent = !supported ? 'Sur iPhone, les notifications Web Push nécessitent une PWA ajoutée à l’écran d’accueil.' : active ? 'Les délais se règlent directement dans chaque rendez-vous ou tâche.' : 'L’activation doit être faite sur chaque téléphone qui souhaite recevoir des rappels.';
+}
+
+async function openNotificationDialog() {
+  await renderNotificationDialog();
+  $('#notificationDialog').showModal();
+  vibration();
+}
+function closeNotificationDialog() { if ($('#notificationDialog').open) $('#notificationDialog').close(); }
+
+async function toggleSystemNotifications() {
+  if (!notificationsSupported()) { showToast('Notifications système non disponibles sur cet appareil.'); return; }
+  const button = $('#enableNotificationsButton');
+  button.disabled = true;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) {
+      const endpoint = existing.endpoint;
+      await existing.unsubscribe();
+      await store.removePushSubscription(endpoint);
+      showToast('Notifications désactivées sur cet appareil.');
+    } else {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') throw new Error('Autorisation de notification refusée.');
+      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
+      await store.savePushSubscription(subscription);
+      showToast('Notifications activées sur cet appareil.');
+    }
+    renderNotificationIndicator();
+    await renderNotificationDialog();
+  } catch (error) { showToast(error.message || 'Activation impossible.'); }
+  finally { button.disabled = false; }
+}
+
+async function saveNotificationPreferences() {
+  const button = $('#saveNotificationPreferencesButton');
+  button.disabled = true;
+  try {
+    await store.saveNotificationPreferences({
+      eventReminders: $('#eventRemindersToggle').checked,
+      taskReminders: $('#taskRemindersToggle').checked,
+      dailySummary: $('#dailySummaryToggle').checked,
+      dailySummaryTime: $('#dailySummaryTime').value || '07:30'
+    });
+    showToast('Préférences de notification enregistrées.');
+    await renderNotificationDialog();
+  } catch (error) { showToast(error.message || 'Enregistrement impossible.'); }
+  finally { button.disabled = false; }
+}
+
+async function testNotification() {
+  try {
+    if (Notification.permission !== 'granted') throw new Error('Active d’abord les notifications.');
+    const registration = await navigator.serviceWorker.ready;
+    await registration.showNotification('AGENDA · Test', {
+      body: `${familyDisplayName(store.getState())} est prête à recevoir ses rappels.`,
+      icon: './assets/icons/agenda_app_icon_192x192.png',
+      badge: './assets/icons/agenda_app_icon_96x96.png',
+      tag: 'agenda-test',
+      data: { url: './' }
+    });
+  } catch (error) { showToast(error.message || 'Test impossible.'); }
 }
 
 function showToast(message) {
@@ -1046,6 +1291,10 @@ function setupEvents() {
     if (event.target.closest('[data-close-dialog]')) closeEventDialog();
     if (event.target.closest('[data-close-account]')) closeAccountDialog();
     if (event.target.closest('[data-close-member-edit]')) closeMemberEditDialog();
+    if (event.target.closest('[data-close-tasks]')) closeTasksDialog();
+    if (event.target.closest('[data-close-task-dialog]')) closeTaskDialog();
+    if (event.target.closest('[data-close-notifications]')) closeNotificationDialog();
+    if (event.target.closest('[data-open-task]')) openTaskDialog();
 
     const authModeButton = event.target.closest('[data-auth-mode]');
     if (authModeButton) showAuthMode(authModeButton.dataset.authMode);
@@ -1055,6 +1304,18 @@ function setupEvents() {
 
     const editButton = event.target.closest('[data-edit-event]');
     if (editButton) openEventDialog(editButton.dataset.editEvent);
+
+    const taskEditButton = event.target.closest('[data-edit-task]');
+    if (taskEditButton) openTaskDialog(taskEditButton.dataset.editTask);
+
+    const taskToggleButton = event.target.closest('[data-toggle-task]');
+    if (taskToggleButton) {
+      const task = store.getState().tasks.find((item) => item.id === taskToggleButton.dataset.toggleTask);
+      if (task) { store.toggleTask(task.id, task.status !== 'done'); vibration(); renderTasksDialog(); }
+    }
+
+    const taskFilterButton = event.target.closest('[data-task-filter]');
+    if (taskFilterButton) { state.taskFilter = taskFilterButton.dataset.taskFilter; renderTasksDialog(); }
 
     const modeButton = event.target.closest('[data-agenda-mode]');
     if (modeButton) {
@@ -1073,6 +1334,11 @@ function setupEvents() {
   $('#previousWeek').addEventListener('click', () => moveWeek(-1));
   $('#nextWeek').addEventListener('click', () => moveWeek(1));
   $('#quickAddButton').addEventListener('click', () => openEventDialog());
+  $('#quickAddTaskButton').addEventListener('click', () => openTaskDialog());
+  $('#openTasksButton').addEventListener('click', openTasksDialog);
+  $('#addTaskFromListButton').addEventListener('click', () => openTaskDialog());
+  $('#taskForm').addEventListener('submit', handleTaskSubmit);
+  $('#deleteTaskButton').addEventListener('click', deleteCurrentTask);
   $('#goTodayButton').addEventListener('click', () => selectDate(toISO(new Date())));
   $('#agendaTodayButton').addEventListener('click', () => { selectDate(toISO(new Date())); switchView('agenda'); });
   $('#eventForm').addEventListener('submit', handleEventSubmit);
@@ -1083,6 +1349,11 @@ function setupEvents() {
   $('#quietModeToggle').addEventListener('change', (event) => { store.setSetting('quietMode', event.target.checked); showToast(event.target.checked ? 'Mode doux activé.' : 'Mode doux désactivé.'); });
   $('#protectMomentButton').addEventListener('click', () => { openEventDialog(); $('#eventForm').elements.title.value = 'Temps pour soi'; });
   $('#accountButton').addEventListener('click', openAccountDialog);
+  $('#notificationButton').addEventListener('click', openNotificationDialog);
+  $('#manageNotificationsButton').addEventListener('click', openNotificationDialog);
+  $('#enableNotificationsButton').addEventListener('click', toggleSystemNotifications);
+  $('#saveNotificationPreferencesButton').addEventListener('click', saveNotificationPreferences);
+  $('#testNotificationButton').addEventListener('click', testNotification);
   $('#quickProfileButton').addEventListener('click', openAccountDialog);
   $('#addMemberButton').addEventListener('click', openAccountDialog);
   $('#manageAccessButton').addEventListener('click', openAccountDialog);
@@ -1101,7 +1372,7 @@ function setupEvents() {
   $('#resetButton').addEventListener('click', () => {
     const user = store.getCurrentUser();
     if (user?.role !== 'admin') { showToast('Seul Nacer peut réinitialiser l’agenda.'); return; }
-    if (confirm('Supprimer tous les événements et restaurer uniquement Nacer, Romane et Chacha ?')) {
+    if (confirm('Supprimer tous les événements et toutes les tâches, puis restaurer uniquement Nacer, Romane et Chacha ?')) {
       store.reset();
       state.activeMember = 'all';
       state.selectedDate = toISO(new Date());
@@ -1113,6 +1384,9 @@ function setupEvents() {
   $('#eventDialog').addEventListener('click', (event) => { if (event.target === $('#eventDialog')) closeEventDialog(); });
   $('#accountDialog').addEventListener('click', (event) => { if (event.target === $('#accountDialog')) closeAccountDialog(); });
   $('#memberEditDialog').addEventListener('click', (event) => { if (event.target === $('#memberEditDialog')) closeMemberEditDialog(); });
+  $('#tasksDialog').addEventListener('click', (event) => { if (event.target === $('#tasksDialog')) closeTasksDialog(); });
+  $('#taskDialog').addEventListener('click', (event) => { if (event.target === $('#taskDialog')) closeTaskDialog(); });
+  $('#notificationDialog').addEventListener('click', (event) => { if (event.target === $('#notificationDialog')) closeNotificationDialog(); });
   $('#loginForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.login(payload)); });
   $('#setupForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.setup(payload)); });
   $('#inviteForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.acceptInvite(payload)); });
@@ -1217,7 +1491,10 @@ async function bootstrap() {
   updateConnection();
   const auth = await store.init();
   applyAuthUI();
-  if (auth.authenticated && new URLSearchParams(location.search).get('action') === 'add') setTimeout(() => openEventDialog(), 250);
+  if (auth.authenticated && state.deepLinkEvent) setTimeout(() => openEventDialog(state.deepLinkEvent), 250);
+  else if (auth.authenticated && state.deepLinkTask) setTimeout(() => openTaskDialog(state.deepLinkTask), 250);
+  else if (auth.authenticated && new URLSearchParams(location.search).get('action') === 'task') setTimeout(() => openTaskDialog(), 250);
+  else if (auth.authenticated && new URLSearchParams(location.search).get('action') === 'add') setTimeout(() => openEventDialog(), 250);
 }
 
 bootstrap();

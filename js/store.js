@@ -1,11 +1,11 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js';
 
-const STORAGE_KEY = 'agenda-family-supabase-state-v3';
-const QUEUE_KEY = 'agenda-family-supabase-queue-v3';
-const PENDING_ONBOARDING_KEY = 'agenda-family-supabase-onboarding-v3';
+const STORAGE_KEY = 'agenda-family-supabase-state-v4';
+const QUEUE_KEY = 'agenda-family-supabase-queue-v4';
+const PENDING_ONBOARDING_KEY = 'agenda-family-supabase-onboarding-v4';
 const CHANNEL_NAME = 'agenda-family-supabase-tabs';
-const DATA_VERSION = 3;
+const DATA_VERSION = 4;
 
 const uid = () => globalThis.crypto?.randomUUID?.() || `evt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -42,6 +42,8 @@ function createSeed() {
       { id: 'local-chacha', name: 'Chacha', nickname: '', role: 'Enfant', initials: 'CH', color: '#739A87', avatarUrl: null }
     ],
     events: [],
+    tasks: [],
+    notificationPreferences: { pushEnabled: false, eventReminders: true, taskReminders: true, dailySummary: true, dailySummaryTime: '07:30' },
     syncedAt: null
   };
 }
@@ -55,6 +57,14 @@ function normalizeState(candidate) {
     settings: { quietMode: Boolean(candidate.settings?.quietMode) },
     members: Array.isArray(candidate.members) && candidate.members.length ? candidate.members : seed.members,
     events: Array.isArray(candidate.events) ? candidate.events : [],
+    tasks: Array.isArray(candidate.tasks) ? candidate.tasks : [],
+    notificationPreferences: {
+      pushEnabled: Boolean(candidate.notificationPreferences?.pushEnabled),
+      eventReminders: candidate.notificationPreferences?.eventReminders !== false,
+      taskReminders: candidate.notificationPreferences?.taskReminders !== false,
+      dailySummary: candidate.notificationPreferences?.dailySummary !== false,
+      dailySummaryTime: candidate.notificationPreferences?.dailySummaryTime || '07:30'
+    },
     syncedAt: candidate.syncedAt || null
   };
 }
@@ -105,6 +115,7 @@ function mapEvent(row) {
     responsibleMemberId: row.responsible_member_id || '',
     seriesId: row.series_id || '',
     recurrenceRule: row.recurrence_rule || 'none',
+    reminderMinutes: row.reminder_minutes === null || row.reminder_minutes === undefined ? null : Number(row.reminder_minutes),
     updatedAt: row.updated_at
   };
 }
@@ -125,7 +136,53 @@ function eventToRow(event, familyId, userId) {
     responsible_member_id: event.responsibleMemberId || null,
     series_id: event.seriesId || null,
     recurrence_rule: event.recurrenceRule || 'none',
+    reminder_minutes: event.reminderMinutes === '' || event.reminderMinutes === null || event.reminderMinutes === undefined ? null : Number(event.reminderMinutes),
     updated_by: userId
+  };
+}
+
+function mapTask(row) {
+  return {
+    id: row.id,
+    familyId: row.family_id,
+    title: row.title,
+    dueDate: row.due_date,
+    dueTime: row.due_time ? String(row.due_time).slice(0, 5) : '',
+    responsibleMemberId: row.responsible_member_id || '',
+    priority: row.priority || 'normal',
+    status: row.status || 'pending',
+    notes: row.notes || '',
+    reminderMinutes: row.reminder_minutes === null || row.reminder_minutes === undefined ? null : Number(row.reminder_minutes),
+    completedAt: row.completed_at || null,
+    updatedAt: row.updated_at
+  };
+}
+
+function taskToRow(task, familyId, userId) {
+  return {
+    id: task.id,
+    family_id: familyId,
+    title: String(task.title || '').trim().slice(0, 120),
+    due_date: task.dueDate,
+    due_time: task.dueTime || null,
+    responsible_member_id: task.responsibleMemberId || null,
+    priority: ['low','normal','high'].includes(task.priority) ? task.priority : 'normal',
+    status: task.status === 'done' ? 'done' : 'pending',
+    notes: String(task.notes || '').trim().slice(0, 300) || null,
+    reminder_minutes: task.reminderMinutes === '' || task.reminderMinutes === null || task.reminderMinutes === undefined ? null : Number(task.reminderMinutes),
+    completed_at: task.status === 'done' ? (task.completedAt || new Date().toISOString()) : null,
+    completed_by: task.status === 'done' ? userId : null,
+    updated_by: userId
+  };
+}
+
+function mapNotificationPreferences(row) {
+  return {
+    pushEnabled: Boolean(row?.push_enabled),
+    eventReminders: row?.event_reminders !== false,
+    taskReminders: row?.task_reminders !== false,
+    dailySummary: row?.daily_summary !== false,
+    dailySummaryTime: row?.daily_summary_time ? String(row.daily_summary_time).slice(0, 5) : '07:30'
   };
 }
 
@@ -438,12 +495,14 @@ class AgendaStore extends EventTarget {
     }
 
     const familyId = membershipResult.data.family_id;
-    const [familyResult, membersResult, eventsResult] = await Promise.all([
+    const [familyResult, membersResult, eventsResult, tasksResult, notificationPreferencesResult] = await Promise.all([
       this.supabase.from('families').select('id, name, symbol, photo_url, quiet_mode, invite_expires_at').eq('id', familyId).single(),
       this.supabase.from('members').select('*').eq('family_id', familyId).order('sort_order'),
-      this.supabase.from('events').select('*').eq('family_id', familyId).order('event_date').order('event_time')
+      this.supabase.from('events').select('*').eq('family_id', familyId).order('event_date').order('event_time'),
+      this.supabase.from('tasks').select('*').eq('family_id', familyId).order('due_date').order('due_time'),
+      this.supabase.from('notification_preferences').select('*').eq('user_id', userId).maybeSingle()
     ]);
-    for (const result of [familyResult, membersResult, eventsResult]) if (result.error) throw result.error;
+    for (const result of [familyResult, membersResult, eventsResult, tasksResult, notificationPreferencesResult]) if (result.error) throw result.error;
 
     this.needsFamily = false;
     this.currentUser = {
@@ -460,6 +519,8 @@ class AgendaStore extends EventTarget {
       settings: { quietMode: Boolean(familyResult.data.quiet_mode) },
       members: membersResult.data.map(mapMember),
       events: eventsResult.data.map(mapEvent),
+      tasks: tasksResult.data.map(mapTask),
+      notificationPreferences: mapNotificationPreferences(notificationPreferencesResult.data),
       syncedAt: new Date().toISOString()
     };
     this.remoteReady = true;
@@ -477,6 +538,7 @@ class AgendaStore extends EventTarget {
     this.realtimeChannel = this.supabase
       .channel(`agenda-family-${familyId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, schedulePull)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, schedulePull)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, schedulePull)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'families' }, schedulePull)
       .subscribe((status) => {
@@ -537,6 +599,33 @@ class AgendaStore extends EventTarget {
     this.enqueue('delete_event', { id });
   }
 
+  addTask(task) {
+    const item = { ...task, id: task.id || uid(), familyId: this.state.family.id, status: task.status || 'pending', completedAt: null, updatedAt: new Date().toISOString() };
+    this.state.tasks.push(item);
+    this.saveState('task-added');
+    this.enqueue('upsert_task', item);
+    return item;
+  }
+
+  updateTask(id, changes) {
+    const index = this.state.tasks.findIndex((task) => task.id === id);
+    if (index < 0) return null;
+    this.state.tasks[index] = { ...this.state.tasks[index], ...changes, id, updatedAt: new Date().toISOString() };
+    this.saveState('task-updated');
+    this.enqueue('upsert_task', this.state.tasks[index]);
+    return this.state.tasks[index];
+  }
+
+  toggleTask(id, done) {
+    return this.updateTask(id, { status: done ? 'done' : 'pending', completedAt: done ? new Date().toISOString() : null });
+  }
+
+  deleteTask(id) {
+    this.state.tasks = this.state.tasks.filter((task) => task.id !== id);
+    this.saveState('task-deleted');
+    this.enqueue('delete_task', { id });
+  }
+
   setSetting(key, value) {
     if (key !== 'quietMode') return;
     this.state.settings.quietMode = Boolean(value);
@@ -546,8 +635,9 @@ class AgendaStore extends EventTarget {
 
   reset() {
     this.state.events = [];
+    this.state.tasks = [];
     this.saveState('reset');
-    this.enqueue('reset_events', {});
+    this.enqueue('reset_family_content', {});
   }
 
   async createInvitation() {
@@ -602,12 +692,72 @@ class AgendaStore extends EventTarget {
     this.emit('member-updated');
   }
 
+  async saveNotificationPreferences(preferences) {
+    if (!this.session?.user?.id || !this.state.family?.id) throw new Error('Session familiale indisponible.');
+    if (!navigator.onLine) throw new Error('Une connexion Internet est nécessaire pour enregistrer les notifications.');
+    const row = {
+      user_id: this.session.user.id,
+      family_id: this.state.family.id,
+      push_enabled: preferences.pushEnabled === undefined
+        ? Boolean(this.state.notificationPreferences?.pushEnabled)
+        : Boolean(preferences.pushEnabled),
+      event_reminders: preferences.eventReminders !== false,
+      task_reminders: preferences.taskReminders !== false,
+      daily_summary: preferences.dailySummary !== false,
+      daily_summary_time: preferences.dailySummaryTime || '07:30'
+    };
+    const { error } = await this.supabase.from('notification_preferences').upsert(row, { onConflict: 'user_id' });
+    if (error) throw error;
+    this.state.notificationPreferences = mapNotificationPreferences(row);
+    this.saveState('notification-preferences-updated');
+    return this.state.notificationPreferences;
+  }
+
+  async savePushSubscription(subscription) {
+    if (!this.session?.user?.id || !this.state.family?.id) throw new Error('Session familiale indisponible.');
+    if (!navigator.onLine) throw new Error('Une connexion Internet est nécessaire.');
+    const json = typeof subscription.toJSON === 'function' ? subscription.toJSON() : subscription;
+    const row = {
+      user_id: this.session.user.id,
+      family_id: this.state.family.id,
+      endpoint: json.endpoint,
+      p256dh: json.keys?.p256dh,
+      auth: json.keys?.auth,
+      user_agent: typeof navigator !== 'undefined' ? String(navigator.userAgent || '').slice(0, 500) : null,
+      updated_at: new Date().toISOString()
+    };
+    if (!row.endpoint || !row.p256dh || !row.auth) throw new Error('Abonnement push invalide.');
+    const { error } = await this.supabase.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' });
+    if (error) throw error;
+    await this.saveNotificationPreferences({ ...this.state.notificationPreferences, pushEnabled: true });
+  }
+
+  async removePushSubscription(endpoint) {
+    if (!endpoint || !this.session?.user?.id || !navigator.onLine) return;
+    const userId = this.session.user.id;
+    const { error } = await this.supabase.from('push_subscriptions').delete().eq('endpoint', endpoint).eq('user_id', userId);
+    if (error) throw error;
+    const { data: remaining, error: remainingError } = await this.supabase
+      .from('push_subscriptions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('enabled', true)
+      .limit(1);
+    if (remainingError) throw remainingError;
+    await this.saveNotificationPreferences({
+      ...this.state.notificationPreferences,
+      pushEnabled: Boolean(remaining?.length)
+    });
+  }
+
   exportData() {
     const payload = {
       exportedAt: new Date().toISOString(),
       family: this.state.family,
       members: this.state.members,
       events: this.state.events,
+      tasks: this.state.tasks,
+      notificationPreferences: this.state.notificationPreferences,
       settings: this.state.settings
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -637,11 +787,23 @@ class AgendaStore extends EventTarget {
       case 'delete_series':
         result = await this.supabase.from('events').delete().eq('series_id', operation.payload.seriesId).eq('family_id', familyId);
         break;
+      case 'upsert_task':
+        result = await this.supabase.from('tasks').upsert(taskToRow(operation.payload, familyId, userId));
+        break;
+      case 'delete_task':
+        result = await this.supabase.from('tasks').delete().eq('id', operation.payload.id).eq('family_id', familyId);
+        break;
       case 'update_family':
         result = await this.supabase.from('families').update({ quiet_mode: Boolean(operation.payload.quietMode) }).eq('id', familyId);
         break;
-      case 'reset_events':
-        result = await this.supabase.from('events').delete().eq('family_id', familyId);
+      case 'reset_family_content':
+        {
+          const [eventsResult, tasksResult] = await Promise.all([
+            this.supabase.from('events').delete().eq('family_id', familyId),
+            this.supabase.from('tasks').delete().eq('family_id', familyId)
+          ]);
+          result = eventsResult.error ? eventsResult : tasksResult;
+        }
         break;
       default:
         throw new Error(`Opération inconnue : ${operation.type}`);

@@ -1,0 +1,2 @@
+[functions.agenda-notifications]
+verify_jwt = false

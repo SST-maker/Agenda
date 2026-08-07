@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=3.3.1">
+  <link rel="stylesheet" href="styles.css?v=3.4.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -44,6 +44,9 @@
     <symbol id="i-log-out" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M15 3h5a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-5"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
     <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.7 4 3 9 3s9-1.3 9-3V5M3 11v6c0 1.7 4 3 9 3s9-1.3 9-3v-6"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 10h6M9 14h6"/></symbol>
+    <symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.06.06-2.76 2.76-.06-.06a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.65V21h-3.9v-.09A1.8 1.8 0 0 0 8.9 19.3a1.8 1.8 0 0 0-2 .36l-.06.06-2.76-2.76.06-.06a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2.85 13.8H2.8V9.9h.09A1.8 1.8 0 0 0 4.5 8.8a1.8 1.8 0 0 0-.36-2l-.06-.06L6.84 4l.06.06a1.8 1.8 0 0 0 2 .36A1.8 1.8 0 0 0 10 2.8V2.7h3.9v.09A1.8 1.8 0 0 0 15 4.4a1.8 1.8 0 0 0 2-.36l.06-.06 2.76 2.76-.06.06a1.8 1.8 0 0 0-.36 2 1.8 1.8 0 0 0 1.65 1.1h.09v3.9h-.09A1.8 1.8 0 0 0 19.4 15Z"/></symbol>
   </svg>
 
   <section class="auth-gate" id="authGate" aria-labelledby="authTitle">
@@ -150,6 +153,9 @@
           <span class="connection-dot"></span>
           <span>Synchronisé</span>
         </span>
+        <button class="icon-button tap notification-topbar-button" id="notificationButton" aria-label="Notifications">
+          <svg><use href="#i-bell"></use></svg><span class="notification-status-dot" id="notificationStatusDot"></span>
+        </button>
         <button class="icon-button tap" id="accountButton" aria-label="Compte et partage familial">
           <svg><use href="#i-user"></use></svg>
         </button>
@@ -201,6 +207,19 @@
             <span class="quick-action-icon"><svg><use href="#i-user"></use></svg></span>
             <div><strong>Mon profil</strong><small>Photo et partage</small></div>
           </button>
+        </section>
+
+        <section class="tasks-home-card reveal" aria-labelledby="tasksHomeTitle">
+          <header class="tasks-home-header">
+            <div>
+              <p class="eyebrow">À faire aujourd’hui</p>
+              <h2 id="tasksHomeTitle">Les petites choses qui comptent.</h2>
+            </div>
+            <button class="round-action tap" id="quickAddTaskButton" aria-label="Ajouter une tâche"><svg><use href="#i-plus"></use></svg></button>
+          </header>
+          <div class="tasks-home-summary" id="tasksHomeSummary"></div>
+          <div class="tasks-home-list" id="tasksHomeList"></div>
+          <button class="text-button tasks-see-all tap" id="openTasksButton" type="button">Voir toutes les tâches <svg><use href="#i-arrow-up-right"></use></svg></button>
         </section>
 
         <section class="section-block reveal" aria-labelledby="memberFilterTitle">
@@ -337,6 +356,10 @@
             <label class="switch"><input type="checkbox" id="quietModeToggle"><span></span></label>
           </div>
           <div class="setting-row">
+            <div><strong>Notifications</strong><span id="notificationSettingCopy">Rappels de rendez-vous, tâches et résumé du matin.</span></div>
+            <button class="secondary-button tap" id="manageNotificationsButton"><svg><use href="#i-bell"></use></svg>Configurer</button>
+          </div>
+          <div class="setting-row">
             <div><strong>Partage familial</strong><span>Invitation privée valable 72 heures.</span></div>
             <button class="secondary-button tap" id="manageAccessButton">Gérer les accès</button>
           </div>
@@ -378,6 +401,7 @@
         <label class="switch-field field-wide"><span><strong>Toute la journée</strong><small>Pour un anniversaire, des vacances ou une journée spéciale.</small></span><span class="switch"><input type="checkbox" name="allDay" id="allDayToggle"><span></span></span></label>
         <label class="field"><span>Répétition</span><select name="recurrence"><option value="none">Aucune</option><option value="daily">Tous les jours</option><option value="weekly">Chaque semaine</option><option value="monthly">Chaque mois</option><option value="yearly">Chaque année</option></select></label>
         <label class="field" id="recurrenceUntilField" hidden><span>Jusqu’au</span><input type="date" name="recurrenceUntil"></label>
+        <label class="field"><span>Rappel</span><select name="reminderMinutes"><option value="">Aucun</option><option value="10">10 min avant</option><option value="30">30 min avant</option><option value="60" selected>1 h avant</option><option value="120">2 h avant</option><option value="1440">La veille</option></select></label>
         <label class="field"><span>Catégorie</span><select name="category"><option value="family">Famille</option><option value="school">École</option><option value="health">Santé</option><option value="work">Travail</option><option value="sport">Sport</option><option value="home">Maison</option></select></label>
         <label class="field field-wide"><span>Lieu</span><input name="location" maxlength="100" placeholder="Facultatif"></label>
         <fieldset class="member-picker field-wide"><legend>Pour qui ?</legend><div id="dialogMemberPicker"></div></fieldset>
@@ -389,6 +413,72 @@
     </form>
   </dialog>
 
+
+  <dialog class="account-dialog tasks-dialog" id="tasksDialog" aria-labelledby="tasksDialogTitle">
+    <section class="account-sheet tasks-sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div><p class="eyebrow">Organisation familiale</p><h2 id="tasksDialogTitle">Toutes les tâches</h2></div>
+        <button type="button" class="icon-button tap" data-close-tasks aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
+      </header>
+      <div class="tasks-dialog-toolbar">
+        <div class="segmented-control task-segmented" role="group" aria-label="Filtrer les tâches">
+          <button class="is-active tap" data-task-filter="today">Aujourd’hui</button>
+          <button class="tap" data-task-filter="upcoming">À venir</button>
+          <button class="tap" data-task-filter="done">Terminées</button>
+        </div>
+        <button class="round-action tap" id="addTaskFromListButton" type="button" aria-label="Ajouter une tâche"><svg><use href="#i-plus"></use></svg></button>
+      </div>
+      <div class="tasks-dialog-list" id="tasksDialogList"></div>
+    </section>
+  </dialog>
+
+  <dialog class="event-dialog" id="taskDialog" aria-labelledby="taskDialogTitle">
+    <form method="dialog" id="taskForm" class="event-sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div><p class="eyebrow">Tâche familiale</p><h2 id="taskDialogTitle">Ajouter une tâche</h2></div>
+        <button type="button" class="icon-button tap" data-close-task-dialog aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
+      </header>
+      <input type="hidden" name="taskId">
+      <div class="form-grid">
+        <label class="field field-wide"><span>À faire</span><input name="title" maxlength="120" required placeholder="Ex. Récupérer le colis"></label>
+        <label class="field"><span>Date</span><input type="date" name="dueDate" required></label>
+        <label class="field"><span>Heure</span><input type="time" name="dueTime"></label>
+        <label class="field"><span>Priorité</span><select name="priority"><option value="normal">Normale</option><option value="high">Importante</option><option value="low">Quand on peut</option></select></label>
+        <label class="field"><span>Rappel</span><select name="reminderMinutes"><option value="">Aucun</option><option value="10">10 min avant</option><option value="30">30 min avant</option><option value="60" selected>1 h avant</option><option value="120">2 h avant</option><option value="1440">La veille</option></select></label>
+        <label class="field field-wide"><span>Qui s’en occupe ?</span><select name="responsibleMemberId" id="taskResponsibleMemberSelect"><option value="">Toute la famille</option></select></label>
+        <label class="field field-wide"><span>Note</span><textarea name="notes" rows="3" maxlength="300" placeholder="Une précision utile…"></textarea></label>
+      </div>
+      <div class="dialog-actions"><button class="danger-text-button tap" type="button" id="deleteTaskButton" hidden><svg><use href="#i-trash"></use></svg>Supprimer</button><button class="primary-button submit-button tap" id="taskSubmitButton" type="submit">Ajouter la tâche <svg><use href="#i-check"></use></svg></button></div>
+    </form>
+  </dialog>
+
+  <dialog class="account-dialog notification-dialog" id="notificationDialog" aria-labelledby="notificationDialogTitle">
+    <section class="account-sheet notification-sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div><p class="eyebrow">Rappels familiaux</p><h2 id="notificationDialogTitle">Notifications</h2></div>
+        <button type="button" class="icon-button tap" data-close-notifications aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
+      </header>
+      <section class="notification-hero" id="notificationHero">
+        <span class="notification-hero-icon"><svg><use href="#i-bell"></use></svg></span>
+        <div><strong id="notificationHeroTitle">Activer les notifications</strong><p id="notificationHeroCopy">AGENDA peut prévenir les bonnes personnes au bon moment.</p></div>
+        <button class="primary-button tap" id="enableNotificationsButton" type="button">Activer</button>
+      </section>
+      <div class="notification-options">
+        <label class="notification-option"><div><strong>Rappels de rendez-vous</strong><span>Selon le délai choisi dans chaque événement.</span></div><span class="switch"><input type="checkbox" id="eventRemindersToggle"><span></span></span></label>
+        <label class="notification-option"><div><strong>Rappels de tâches</strong><span>Préviens la personne responsable avant l’échéance.</span></div><span class="switch"><input type="checkbox" id="taskRemindersToggle"><span></span></span></label>
+        <label class="notification-option"><div><strong>Résumé du matin</strong><span>Un aperçu simple de la journée familiale.</span></div><span class="switch"><input type="checkbox" id="dailySummaryToggle"><span></span></span></label>
+        <label class="field notification-time-field"><span>Heure du résumé</span><input type="time" id="dailySummaryTime" value="07:30"></label>
+      </div>
+      <div class="notification-footer-actions">
+        <button class="secondary-button tap" id="testNotificationButton" type="button"><svg><use href="#i-bell"></use></svg>Tester</button>
+        <button class="primary-button tap" id="saveNotificationPreferencesButton" type="button">Enregistrer</button>
+      </div>
+      <p class="notification-support-note" id="notificationSupportNote"></p>
+    </section>
+  </dialog>
 
   <dialog class="account-dialog" id="accountDialog" aria-labelledby="accountTitle">
     <section class="account-sheet">
@@ -470,6 +560,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=3.3.1"></script>
+  <script type="module" src="js/app.js?v=3.4.0"></script>
 </body>
 </html>

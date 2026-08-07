@@ -1,11 +1,12 @@
-const CACHE_NAME = 'agenda-shell-v3.3.1';
+const CACHE_NAME = 'agenda-shell-v3.4.0';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=3.3.1',
+  './styles.css?v=3.4.0',
   './manifest.json',
-  './js/app.js?v=3.3.1',
-  './js/store.js?v=3.3.1',
+  './js/app.js?v=3.4.0',
+  './js/store.js?v=3.4.0',
+  './js/push-config.js?v=3.4.0',
   './assets/brand/logo-horizontal.svg',
   './assets/brand/logo-symbol.svg',
   './assets/brand/logo-symbol-light.svg',
@@ -89,6 +90,44 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => cached);
       return cached || network;
+    })
+  );
+});
+
+
+// Notifications Web Push AGENDA v3.4
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data?.json() || {}; }
+  catch { payload = { body: event.data?.text() || 'Nouveau rappel familial.' }; }
+
+  const title = payload.title || 'AGENDA';
+  const options = {
+    body: payload.body || 'Un rappel familial vous attend.',
+    icon: './assets/icons/agenda_app_icon_192x192.png',
+    badge: './assets/icons/agenda_app_icon_96x96.png',
+    tag: payload.tag || `agenda-${Date.now()}`,
+    renotify: Boolean(payload.renotify),
+    data: { url: payload.url || './', ...payload.data },
+    actions: Array.isArray(payload.actions) ? payload.actions.slice(0, 2) : []
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || './', self.registration.scope).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
+      for (const client of clients) {
+        if ('focus' in client) {
+          if ('navigate' in client && client.url !== target) {
+            try { await client.navigate(target); } catch { /* navigation optionnelle */ }
+          }
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow ? self.clients.openWindow(target) : undefined;
     })
   );
 });

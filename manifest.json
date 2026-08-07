@@ -65,6 +65,18 @@
           "sizes": "192x192"
         }
       ]
+    },
+    {
+      "name": "Ajouter une tâche",
+      "short_name": "Tâche",
+      "description": "Créer rapidement une tâche familiale",
+      "url": "./index.html?action=task",
+      "icons": [
+        {
+          "src": "assets/icons/agenda_app_icon_192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ],
   "screenshots": [
