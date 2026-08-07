@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.7.1';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.7.1';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.8.0';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.8.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -14,6 +14,7 @@ const state = {
   taskFilter: 'today',
   shoppingFilter: 'open',
   routineFilter: 'today',
+  searchFilter: 'all',
   deepLinkEvent: new URLSearchParams(location.search).get('event') || '',
   deepLinkTask: new URLSearchParams(location.search).get('task') || '',
   notificationAction: new URLSearchParams(location.search).get('notificationAction') || '',
@@ -172,6 +173,7 @@ function getGreeting() {
 // Rendu central : chaque vue lit le même état local-first.
 function render() {
   const data = store.getState();
+  applyUserPreferences(data);
   renderHeader(data);
   renderMemberFilter(data);
   renderFamilyFeed(data);
@@ -188,6 +190,89 @@ function render() {
   renderFocus(data);
   renderDialogMembers(data);
   renderNotificationIndicator(data);
+}
+
+function resolvedTheme(choice = 'system') {
+  if (choice === 'dark' || choice === 'light') return choice;
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyUserPreferences(data = store.getState()) {
+  const choice = data.settings?.theme || 'system';
+  const theme = resolvedTheme(choice);
+  document.documentElement.dataset.theme = theme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#101816' : '#F6EED8');
+  const widgets = data.settings?.homeWidgets || {};
+  $$('[data-home-widget]').forEach((section) => { section.hidden = widgets[section.dataset.homeWidget] === false; });
+}
+
+function isStandaloneApp() {
+  return Boolean(window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true);
+}
+
+function renderSettingsDialog() {
+  const data = store.getState();
+  const user = store.getCurrentUser();
+  const choice = data.settings?.theme || 'system';
+  $$('[data-theme-choice]').forEach((button) => button.classList.toggle('is-active', button.dataset.themeChoice === choice));
+  $$('[data-home-widget-toggle]').forEach((input) => { input.checked = data.settings?.homeWidgets?.[input.dataset.homeWidgetToggle] !== false; });
+
+  const checks = [
+    { label: 'Identité famille', done: Boolean(data.family?.name && data.family?.symbol) },
+    { label: 'Photo de famille', done: Boolean(data.family?.photoUrl) },
+    { label: 'Photo de profil', done: Boolean(user?.avatarUrl) },
+    { label: 'Notifications', done: Boolean(data.notificationPreferences?.pushEnabled && (!('Notification' in window) || Notification.permission === 'granted')) },
+    { label: 'Installée sur l’appareil', done: isStandaloneApp() }
+  ];
+  const done = checks.filter((item) => item.done).length;
+  const percent = Math.round(done / checks.length * 100);
+  $('#setupProgressFill').style.width = `${percent}%`;
+  $('#setupProgressCopy').textContent = `${done}/${checks.length} étapes terminées · ${percent}%`;
+  $('#setupChecks').innerHTML = checks.map((item) => `<div class="setup-check ${item.done ? 'is-done' : ''}"><i>${item.done ? '✓' : '•'}</i><span>${escapeHTML(item.label)}</span></div>`).join('');
+
+  const online = navigator.onLine;
+  const remote = store.isRemoteReady();
+  const pending = store.hasPendingChanges();
+  const setHealth = (dotId, copyId, ok, warn, copy) => {
+    const dot = $(dotId); dot.classList.remove('is-ok','is-warn','is-error'); dot.classList.add(ok ? 'is-ok' : warn ? 'is-warn' : 'is-error');
+    $(copyId).textContent = copy;
+  };
+  setHealth('#healthNetworkDot','#healthNetworkCopy', online, false, online ? 'Connecté' : 'Hors-ligne');
+  setHealth('#healthSyncDot','#healthSyncCopy', online && remote && !pending, online && (pending || !remote), !online ? 'En attente réseau' : pending ? 'Modifs en attente' : remote ? 'À jour' : 'Connexion…');
+  setHealth('#healthInstallDot','#healthInstallCopy', isStandaloneApp(), true, isStandaloneApp() ? 'App installée' : 'Navigateur');
+  $('#settingsSyncCopy').textContent = !online ? 'Le mode hors-ligne est actif' : pending ? 'Des modifications vont être synchronisées' : remote ? 'Toutes les données sont synchronisées' : 'Connexion à Supabase en cours';
+  $('#restoreBackupInput').disabled = user?.role !== 'admin';
+  document.querySelector('.settings-restore-button')?.classList.toggle('is-disabled', user?.role !== 'admin');
+}
+
+function openSettingsDialog() {
+  closeAccountDialog();
+  renderSettingsDialog();
+  $('#settingsDialog').showModal();
+  vibration();
+}
+function closeSettingsDialog() { if ($('#settingsDialog').open) $('#settingsDialog').close(); }
+
+async function handleBackupRestore(event) {
+  const file = event.currentTarget.files?.[0];
+  if (!file) return;
+  try {
+    if (!confirm('Fusionner cette sauvegarde avec les données actuelles ? Les éléments plus récents ne seront pas supprimés.')) return;
+    showToast('Restauration en cours…');
+    const restored = await store.restoreBackup(file);
+    render();
+    renderSettingsDialog();
+    showToast(`${restored.events + restored.tasks + restored.shoppingItems + restored.routines} éléments restaurés`);
+  } catch (error) { showToast(error.message || 'Restauration impossible'); }
+  finally { event.currentTarget.value = ''; }
+}
+
+async function forceSyncNow() {
+  const button = $('#forceSyncButton');
+  button.disabled = true;
+  try { await store.forceSync(); renderSettingsDialog(); showToast('Synchronisation terminée'); }
+  catch (error) { showToast(error.message || 'Synchronisation impossible'); }
+  finally { button.disabled = false; }
 }
 
 function renderHeader(data) {
@@ -1057,7 +1142,7 @@ async function handleCollaborationAttachment(event) {
   finally { event.currentTarget.value = ''; }
 }
 
-function searchAll(query) {
+function searchAll(query, filter = state.searchFilter) {
   const data = store.getState();
   const q = String(query || '').trim().toLocaleLowerCase('fr');
   if (q.length < 2) return [];
@@ -1075,11 +1160,12 @@ function searchAll(query) {
     const parentType = item.entityType === 'event' || item.entityType === 'task' ? item.entityType : '';
     if (parentType) push('activity', item.id, item.summary || 'Activité familiale', 'Historique', `${item.summary} ${item.action}`, parentType, item.entityId);
   });
-  return results.slice(0, 40);
+  const allowed = filter === 'all' ? results : filter === 'attachment' ? results.filter((item) => ['attachment','comment','activity'].includes(item.type)) : results.filter((item) => item.type === filter);
+  return allowed.slice(0, 40);
 }
 
 function renderSearchResults() {
-  const results = searchAll($('#globalSearchInput').value);
+  const results = searchAll($('#globalSearchInput').value, state.searchFilter);
   const box = $('#globalSearchResults');
   if ($('#globalSearchInput').value.trim().length < 2) {
     const data = store.getState();
@@ -1091,6 +1177,7 @@ function renderSearchResults() {
 }
 
 function openSearchDialog() {
+  $$('[data-search-filter]').forEach((button) => button.classList.toggle('is-active', button.dataset.searchFilter === state.searchFilter));
   $('#searchDialog').showModal();
   requestAnimationFrame(() => $('#globalSearchInput').focus());
   vibration();
@@ -1251,10 +1338,13 @@ function setupMobileViewportStability() {
   const viewport = window.visualViewport;
   const sync = () => {
     const keyboardLikelyOpen = Boolean(viewport && window.innerHeight - viewport.height > 120);
+    const keyboardOffset = keyboardLikelyOpen && viewport ? Math.max(0, Math.round(window.innerHeight - (viewport.height + viewport.offsetTop))) : 0;
     document.documentElement.classList.toggle('keyboard-open', keyboardLikelyOpen);
+    document.documentElement.style.setProperty('--keyboard-offset', `${keyboardOffset}px`);
   };
   viewport?.addEventListener('resize', sync);
   viewport?.addEventListener('scroll', sync);
+  window.addEventListener('resize', sync);
   document.addEventListener('focusout', () => setTimeout(sync, 250));
   window.addEventListener('orientationchange', () => setTimeout(sync, 300));
   sync();
@@ -1861,6 +1951,8 @@ function setupEvents() {
   $('#quickProfileButton').addEventListener('click', openAccountDialog);
   $('#addMemberButton').addEventListener('click', openAccountDialog);
   $('#manageAccessButton').addEventListener('click', openAccountDialog);
+  $('#openSettingsButton').addEventListener('click', openSettingsDialog);
+  $('#settingsButton').addEventListener('click', openSettingsDialog);
   $('#inviteButton').addEventListener('click', createInvitation);
   $('#copyInviteButton').addEventListener('click', copyInviteLink);
   $('#saveFamilyIdentityButton').addEventListener('click', saveFamilyIdentity);
@@ -1871,7 +1963,12 @@ function setupEvents() {
   $('#removeProfilePhotoButton').addEventListener('click', removeProfilePhoto);
   $('#saveMemberPresentationButton').addEventListener('click', saveMemberPresentation);
   $('#removeMemberPhotoButton').addEventListener('click', removeMemberPhoto);
-  $('#exportButton').addEventListener('click', () => { store.exportData(); showToast('Sauvegarde téléchargée.'); });
+  $('#exportButton').addEventListener('click', () => { store.exportData(); showToast('Sauvegarde téléchargée'); });
+  $('#settingsExportButton').addEventListener('click', () => { store.exportData(); showToast('Sauvegarde téléchargée'); });
+  $('#restoreBackupInput').addEventListener('change', handleBackupRestore);
+  $('#forceSyncButton').addEventListener('click', forceSyncNow);
+  $$('[data-theme-choice]').forEach((button) => button.addEventListener('click', () => { store.setSetting('theme', button.dataset.themeChoice); applyUserPreferences(store.getState()); renderSettingsDialog(); vibration(); }));
+  $$('[data-home-widget-toggle]').forEach((input) => input.addEventListener('change', () => { store.setSetting('homeWidgets', { [input.dataset.homeWidgetToggle]: input.checked }); applyUserPreferences(store.getState()); renderSettingsDialog(); }));
   $('#logoutButton').addEventListener('click', async () => { closeAccountDialog(); await store.logout(); applyAuthUI(); });
   $('#resetButton').addEventListener('click', () => {
     const user = store.getCurrentUser();
@@ -1896,9 +1993,12 @@ function setupEvents() {
   $('#routineDialog').addEventListener('click', (event) => { if (event.target === $('#routineDialog')) closeRoutineDialog(); });
   $('#collaborationDialog').addEventListener('click', (event) => { if (event.target === $('#collaborationDialog')) closeCollaborationDialog(); });
   $('#searchDialog').addEventListener('click', (event) => { if (event.target === $('#searchDialog')) closeSearchDialog(); });
+  $('#settingsDialog').addEventListener('click', (event) => { if (event.target === $('#settingsDialog')) closeSettingsDialog(); });
+  $('[data-close-settings]').addEventListener('click', closeSettingsDialog);
   $('#commentForm').addEventListener('submit', submitComment);
   $('#collaborationAttachmentInput').addEventListener('change', handleCollaborationAttachment);
   $('#globalSearchInput').addEventListener('input', renderSearchResults);
+  $$('[data-search-filter]').forEach((button) => button.addEventListener('click', () => { state.searchFilter = button.dataset.searchFilter; $$('[data-search-filter]').forEach((item) => item.classList.toggle('is-active', item === button)); renderSearchResults(); vibration(); }));
   $('#loginForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.login(payload)); });
   $('#setupForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.setup(payload)); });
   $('#inviteForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.acceptInvite(payload)); });
@@ -1951,6 +2051,7 @@ function setupEvents() {
   $('#orphanLogoutButton').addEventListener('click', async () => { await store.logout(); applyAuthUI(); });
   window.addEventListener('online', updateConnection);
   window.addEventListener('offline', updateConnection);
+  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if ((store.getState().settings?.theme || 'system') === 'system') applyUserPreferences(store.getState()); });
   store.addEventListener('change', (event) => {
     const reason = event.detail?.reason;
     if (reason === 'auth-status') applyAuthUI(event.detail);
@@ -1959,6 +2060,7 @@ function setupEvents() {
     if (store.getAuthStatus().authenticated) render();
     if ($('#collaborationDialog').open) renderCollaborationDialog();
     if ($('#searchDialog').open) renderSearchResults();
+    if ($('#settingsDialog').open) renderSettingsDialog();
     updateConnection();
   });
   setupSwipe();

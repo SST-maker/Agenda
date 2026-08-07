@@ -35,7 +35,7 @@ function createSeed() {
   return {
     version: DATA_VERSION,
     family: { id: null, name: 'Famille Hamadi', symbol: '🌿', photoUrl: null },
-    settings: { quietMode: false },
+    settings: { quietMode: false, theme: 'system', homeWidgets: { tools: true, feed: true, tasks: true, members: true, week: true, timeline: true, insights: true }, onboardingComplete: false },
     members: [
       { id: 'local-nacer', name: 'Nacer', nickname: '', role: 'Papa', initials: 'NA', color: '#224A54', avatarUrl: null },
       { id: 'local-romane', name: 'Romane', nickname: '', role: 'Maman', initials: 'RO', color: '#C79A5C', avatarUrl: null },
@@ -62,7 +62,7 @@ function normalizeState(candidate) {
   return {
     version: DATA_VERSION,
     family: candidate.family || seed.family,
-    settings: { quietMode: Boolean(candidate.settings?.quietMode) },
+    settings: { quietMode: Boolean(candidate.settings?.quietMode), theme: ['system','light','dark'].includes(candidate.settings?.theme) ? candidate.settings.theme : 'system', homeWidgets: { tools: candidate.settings?.homeWidgets?.tools !== false, feed: candidate.settings?.homeWidgets?.feed !== false, tasks: candidate.settings?.homeWidgets?.tasks !== false, members: candidate.settings?.homeWidgets?.members !== false, week: candidate.settings?.homeWidgets?.week !== false, timeline: candidate.settings?.homeWidgets?.timeline !== false, insights: candidate.settings?.homeWidgets?.insights !== false }, onboardingComplete: Boolean(candidate.settings?.onboardingComplete) },
     members: Array.isArray(candidate.members) && candidate.members.length ? candidate.members : seed.members,
     events: Array.isArray(candidate.events) ? candidate.events : [],
     tasks: Array.isArray(candidate.tasks) ? candidate.tasks : [],
@@ -651,7 +651,7 @@ class AgendaStore extends EventTarget {
     }
 
     const familyId = membershipResult.data.family_id;
-    const [familyResult, membersResult, eventsResult, tasksResult, shoppingResult, routinesResult, routineCompletionsResult, commentsResult, reactionsResult, readsResult, attachmentsResult, activityResult, notificationPreferencesResult] = await Promise.all([
+    const [familyResult, membersResult, eventsResult, tasksResult, shoppingResult, routinesResult, routineCompletionsResult, commentsResult, reactionsResult, readsResult, attachmentsResult, activityResult, notificationPreferencesResult, userPreferencesResult] = await Promise.all([
       this.supabase.from('families').select('id, name, symbol, photo_url, quiet_mode, invite_expires_at').eq('id', familyId).single(),
       this.supabase.from('members').select('*').eq('family_id', familyId).order('sort_order'),
       this.supabase.from('events').select('*').eq('family_id', familyId).order('event_date').order('event_time'),
@@ -664,9 +664,10 @@ class AgendaStore extends EventTarget {
       this.supabase.from('content_reads').select('*').eq('family_id', familyId),
       this.supabase.from('content_attachments').select('*').eq('family_id', familyId).order('created_at'),
       this.supabase.from('activity_log').select('*').eq('family_id', familyId).order('created_at', { ascending: false }).limit(150),
-      this.supabase.from('notification_preferences').select('*').eq('user_id', userId).maybeSingle()
+      this.supabase.from('notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
+      this.supabase.from('user_preferences').select('*').eq('user_id', userId).maybeSingle()
     ]);
-    for (const result of [familyResult, membersResult, eventsResult, tasksResult, shoppingResult, routinesResult, routineCompletionsResult, commentsResult, reactionsResult, readsResult, attachmentsResult, activityResult, notificationPreferencesResult]) if (result.error) throw result.error;
+    for (const result of [familyResult, membersResult, eventsResult, tasksResult, shoppingResult, routinesResult, routineCompletionsResult, commentsResult, reactionsResult, readsResult, attachmentsResult, activityResult, notificationPreferencesResult, userPreferencesResult]) if (result.error) throw result.error;
 
     this.needsFamily = false;
     this.currentUser = {
@@ -680,7 +681,20 @@ class AgendaStore extends EventTarget {
     this.state = {
       version: DATA_VERSION,
       family: { id: familyResult.data.id, name: familyResult.data.name, symbol: familyResult.data.symbol || '🌿', photoUrl: familyResult.data.photo_url || null, inviteExpiresAt: familyResult.data.invite_expires_at },
-      settings: { quietMode: Boolean(familyResult.data.quiet_mode) },
+      settings: {
+        quietMode: Boolean(familyResult.data.quiet_mode),
+        theme: ['system','light','dark'].includes(userPreferencesResult.data?.theme) ? userPreferencesResult.data.theme : 'system',
+        homeWidgets: {
+          tools: userPreferencesResult.data?.home_widgets?.tools !== false,
+          feed: userPreferencesResult.data?.home_widgets?.feed !== false,
+          tasks: userPreferencesResult.data?.home_widgets?.tasks !== false,
+          members: userPreferencesResult.data?.home_widgets?.members !== false,
+          week: userPreferencesResult.data?.home_widgets?.week !== false,
+          timeline: userPreferencesResult.data?.home_widgets?.timeline !== false,
+          insights: userPreferencesResult.data?.home_widgets?.insights !== false
+        },
+        onboardingComplete: Boolean(userPreferencesResult.data?.onboarding_complete)
+      },
       members: membersResult.data.map(mapMember),
       events: eventsResult.data.map(mapEvent),
       tasks: tasksResult.data.map(mapTask),
@@ -878,10 +892,64 @@ class AgendaStore extends EventTarget {
   }
 
   setSetting(key, value) {
-    if (key !== 'quietMode') return;
-    this.state.settings.quietMode = Boolean(value);
-    this.saveState('setting-updated');
-    this.enqueue('update_family', { quietMode: Boolean(value) });
+    if (key === 'quietMode') {
+      this.state.settings.quietMode = Boolean(value);
+      this.saveState('setting-updated');
+      this.enqueue('update_family', { quietMode: Boolean(value) });
+      return;
+    }
+    if (key === 'theme') {
+      const theme = ['system','light','dark'].includes(value) ? value : 'system';
+      this.state.settings.theme = theme;
+      this.saveState('preference-updated');
+      this.enqueue('update_user_preferences', { theme, homeWidgets: this.state.settings.homeWidgets, onboardingComplete: this.state.settings.onboardingComplete });
+      return;
+    }
+    if (key === 'homeWidgets' && value && typeof value === 'object') {
+      this.state.settings.homeWidgets = { ...this.state.settings.homeWidgets, ...value };
+      this.saveState('preference-updated');
+      this.enqueue('update_user_preferences', { theme: this.state.settings.theme, homeWidgets: this.state.settings.homeWidgets, onboardingComplete: this.state.settings.onboardingComplete });
+      return;
+    }
+    if (key === 'onboardingComplete') {
+      this.state.settings.onboardingComplete = Boolean(value);
+      this.saveState('preference-updated');
+      this.enqueue('update_user_preferences', { theme: this.state.settings.theme, homeWidgets: this.state.settings.homeWidgets, onboardingComplete: this.state.settings.onboardingComplete });
+    }
+  }
+
+  async forceSync() {
+    if (!navigator.onLine) throw new Error('Aucune connexion Internet.');
+    await this.reconnect();
+    return true;
+  }
+
+  async restoreBackup(file) {
+    if (!navigator.onLine) throw new Error('Une connexion Internet est nécessaire pour restaurer une sauvegarde.');
+    if (this.currentUser?.role !== 'admin') throw new Error('Seul l’administrateur peut restaurer une sauvegarde.');
+    const raw = typeof file === 'string' ? file : await file.text();
+    let payload;
+    try { payload = JSON.parse(raw); } catch { throw new Error('Le fichier JSON est invalide.'); }
+    const events = Array.isArray(payload.events) ? payload.events : [];
+    const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+    const shoppingItems = Array.isArray(payload.shoppingItems) ? payload.shoppingItems : [];
+    const routines = Array.isArray(payload.routines) ? payload.routines : [];
+    const routineCompletions = Array.isArray(payload.routineCompletions) ? payload.routineCompletions : [];
+    if (![events, tasks, shoppingItems, routines, routineCompletions].some((items) => items.length)) throw new Error('Cette sauvegarde ne contient aucune donnée d’organisation.');
+    const familyId = this.state.family?.id;
+    const userId = this.session?.user?.id;
+    if (!familyId || !userId) throw new Error('Session familiale indisponible.');
+    const results = [];
+    if (events.length) results.push(await this.supabase.from('events').upsert(events.slice(0, 5000).map((item) => eventToRow(item, familyId, userId))));
+    if (tasks.length) results.push(await this.supabase.from('tasks').upsert(tasks.slice(0, 5000).map((item) => taskToRow(item, familyId, userId))));
+    if (shoppingItems.length) results.push(await this.supabase.from('shopping_items').upsert(shoppingItems.slice(0, 5000).map((item) => shoppingItemToRow(item, familyId, userId))));
+    if (routines.length) results.push(await this.supabase.from('routines').upsert(routines.slice(0, 1000).map((item) => routineToRow(item, familyId, userId))));
+    if (routineCompletions.length) results.push(await this.supabase.from('routine_completions').upsert(routineCompletions.slice(0, 10000).map((item) => ({ routine_id: item.routineId, family_id: familyId, completion_date: item.date, completed_by: item.completedBy || userId }))));
+    const failed = results.find((result) => result?.error);
+    if (failed?.error) throw failed.error;
+    await this.pullRemote();
+    this.emit('backup-restored');
+    return { events: events.length, tasks: tasks.length, shoppingItems: shoppingItems.length, routines: routines.length };
   }
 
   reset() {
@@ -1095,7 +1163,10 @@ class AgendaStore extends EventTarget {
 
   exportData() {
     const payload = {
+      backupVersion: 2,
+      appVersion: '3.8.0',
       exportedAt: new Date().toISOString(),
+      note: 'Les fichiers photo/PDF joints ne sont pas embarqués dans ce JSON.',
       family: this.state.family,
       members: this.state.members,
       events: this.state.events,
@@ -1167,6 +1238,15 @@ class AgendaStore extends EventTarget {
         break;
       case 'update_family':
         result = await this.supabase.from('families').update({ quiet_mode: Boolean(operation.payload.quietMode) }).eq('id', familyId);
+        break;
+      case 'update_user_preferences':
+        result = await this.supabase.from('user_preferences').upsert({
+          user_id: userId,
+          family_id: familyId,
+          theme: ['system','light','dark'].includes(operation.payload.theme) ? operation.payload.theme : 'system',
+          home_widgets: operation.payload.homeWidgets || {},
+          onboarding_complete: Boolean(operation.payload.onboardingComplete)
+        }, { onConflict: 'user_id' });
         break;
       case 'reset_family_content':
         {

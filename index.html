@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icons/favicon.ico">
   <link rel="apple-touch-icon" href="assets/icons/agenda_app_icon_180x180.png">
-  <link rel="stylesheet" href="styles.css?v=3.7.1">
+  <link rel="stylesheet" href="styles.css?v=3.8.0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true">
@@ -54,6 +54,10 @@
     <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="m21.4 11.6-8.9 8.9a6 6 0 0 1-8.5-8.5l9.6-9.6a4 4 0 0 1 5.7 5.7l-9.6 9.6a2 2 0 0 1-2.8-2.8l8.9-8.9"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 15.4A8.5 8.5 0 0 1 8.6 4 8.5 8.5 0 1 0 20 15.4Z"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.5 9A7 7 0 0 0 6 6.5L4 9M5.5 15A7 7 0 0 0 18 17.5l2-2.5"/></symbol>
   </svg>
 
   <section class="auth-gate" id="authGate" aria-labelledby="authTitle">
@@ -217,7 +221,7 @@
           </button>
         </section>
 
-        <section class="family-tools reveal" aria-label="Outils du quotidien">
+        <section class="family-tools reveal" data-home-widget="tools" aria-label="Outils du quotidien">
           <button class="family-tool-card tap" id="shoppingShortcutButton" type="button">
             <span class="family-tool-icon"><svg><use href="#i-cart"></use></svg></span>
             <span class="family-tool-copy"><strong>Courses</strong><small id="shoppingShortcutCount">Liste vide</small></span>
@@ -230,7 +234,7 @@
           </button>
         </section>
 
-        <section class="family-feed-card reveal" aria-labelledby="familyFeedTitle">
+        <section class="family-feed-card reveal" data-home-widget="feed" aria-labelledby="familyFeedTitle">
           <header class="family-feed-header">
             <div><p class="eyebrow">Fil de la famille</p><h2 id="familyFeedTitle">Tout ce qui compte, au même endroit</h2></div>
             <span class="family-feed-count" id="familyFeedCount">Journée légère</span>
@@ -238,7 +242,7 @@
           <div class="family-feed-list" id="familyFeedList"></div>
         </section>
 
-        <section class="tasks-home-card reveal" aria-labelledby="tasksHomeTitle">
+        <section class="tasks-home-card reveal" data-home-widget="tasks" aria-labelledby="tasksHomeTitle">
           <header class="tasks-home-header">
             <div>
               <p class="eyebrow">À faire aujourd’hui</p>
@@ -251,7 +255,7 @@
           <button class="text-button tasks-see-all tap" id="openTasksButton" type="button">Voir toutes les tâches <svg><use href="#i-arrow-up-right"></use></svg></button>
         </section>
 
-        <section class="section-block reveal" aria-labelledby="memberFilterTitle">
+        <section class="section-block reveal" data-home-widget="members" aria-labelledby="memberFilterTitle">
           <div class="section-heading compact-heading">
             <div>
               <p class="eyebrow" id="memberFilterTitle">Qui regarde ?</p>
@@ -261,7 +265,7 @@
           <div class="member-filter" id="memberFilter" role="listbox" aria-label="Filtrer par membre"></div>
         </section>
 
-        <section class="section-block reveal" aria-labelledby="weekTitle">
+        <section class="section-block reveal" data-home-widget="week" aria-labelledby="weekTitle">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Cette semaine</p>
@@ -275,7 +279,7 @@
           <div class="day-ribbon" id="dayRibbon" aria-label="Jours de la semaine"></div>
         </section>
 
-        <section class="section-block timeline-section reveal" aria-labelledby="timelineTitle">
+        <section class="section-block timeline-section reveal" data-home-widget="timeline" aria-labelledby="timelineTitle">
           <div class="section-heading">
             <div>
               <p class="eyebrow" id="selectedDateLabel">Aujourd’hui</p>
@@ -286,7 +290,7 @@
           <div class="timeline" id="timeline" aria-live="polite"></div>
         </section>
 
-        <section class="insight-grid reveal" aria-label="Aperçu familial">
+        <section class="insight-grid reveal" data-home-widget="insights" aria-label="Aperçu familial">
           <article class="insight-card memory-card">
             <p class="card-kicker">Moment à protéger</p>
             <h3 id="protectedMomentTitle">Premier moment à créer</h3>
@@ -395,6 +399,10 @@
           <div class="setting-row">
             <div><strong>Installation</strong><span>Ajoute AGENDA à l’écran d’accueil.</span></div>
             <button class="secondary-button tap" id="installButton"><svg><use href="#i-download"></use></svg>Installer</button>
+          </div>
+          <div class="setting-row">
+            <div><strong>Réglages de l’app</strong><span>Apparence, accueil, sauvegarde et état de synchronisation</span></div>
+            <button class="secondary-button tap" id="openSettingsButton"><svg><use href="#i-settings"></use></svg>Ouvrir</button>
           </div>
           <div class="setting-row">
             <div><strong>Réinitialiser l’agenda</strong><span>Supprime les événements et restaure Nacer, Romane et Chacha.</span></div>
@@ -622,6 +630,14 @@
         <button type="button" class="icon-button tap" data-close-search aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
       </header>
       <label class="search-field"><svg><use href="#i-search"></use></svg><input id="globalSearchInput" type="search" autocomplete="off" placeholder="Rendez-vous, tâche, course, commentaire…"></label>
+      <div class="search-filters" id="searchFilters" role="group" aria-label="Filtrer la recherche">
+        <button class="is-active tap" type="button" data-search-filter="all">Tout</button>
+        <button class="tap" type="button" data-search-filter="event">Agenda</button>
+        <button class="tap" type="button" data-search-filter="task">Tâches</button>
+        <button class="tap" type="button" data-search-filter="shopping">Courses</button>
+        <button class="tap" type="button" data-search-filter="routine">Routines</button>
+        <button class="tap" type="button" data-search-filter="attachment">Documents</button>
+      </div>
       <div class="search-results" id="globalSearchResults"><div class="empty-state"><strong>Recherche dans toute la famille</strong><p>Commence à écrire pour retrouver un rendez-vous, une tâche, une course ou une routine.</p></div></div>
     </section>
   </dialog>
@@ -671,7 +687,8 @@
       </section>
       <div class="account-actions">
         <button class="account-action tap" id="inviteButton" type="button"><span><svg><use href="#i-users"></use></svg></span><div><strong>Inviter Romane</strong><small>Génère un lien privé valable 72 heures.</small></div><svg><use href="#i-chevron-right"></use></svg></button>
-        <button class="account-action tap" id="exportButton" type="button"><span><svg><use href="#i-database"></use></svg></span><div><strong>Exporter une sauvegarde</strong><small>Télécharge tous les rendez-vous en JSON.</small></div><svg><use href="#i-download"></use></svg></button>
+        <button class="account-action tap" id="settingsButton" type="button"><span><svg><use href="#i-settings"></use></svg></span><div><strong>Réglages de l’app</strong><small>Apparence, accueil, sauvegarde et synchronisation</small></div><svg><use href="#i-chevron-right"></use></svg></button>
+        <button class="account-action tap" id="exportButton" type="button"><span><svg><use href="#i-database"></use></svg></span><div><strong>Exporter une sauvegarde</strong><small>Agenda, tâches, courses, routines et préférences</small></div><svg><use href="#i-download"></use></svg></button>
         <button class="account-action danger tap" id="logoutButton" type="button"><span><svg><use href="#i-log-out"></use></svg></span><div><strong>Se déconnecter</strong><small>Les données locales restent chiffrées par le navigateur.</small></div><svg><use href="#i-chevron-right"></use></svg></button>
       </div>
       <div class="invite-result" id="inviteResult" hidden>
@@ -680,6 +697,64 @@
         <div><input id="inviteLink" readonly><button class="secondary-button tap" id="copyInviteButton" type="button">Copier</button></div>
         <p class="password-hint">Code : <b id="inviteCode"></b></p>
       </div>
+    </section>
+  </dialog>
+
+  <dialog class="account-dialog settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
+    <section class="account-sheet settings-sheet">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div><p class="eyebrow">Finalisation & confort</p><h2 id="settingsTitle">Réglages de l’app</h2></div>
+        <button type="button" class="icon-button tap" data-close-settings aria-label="Fermer"><svg><use href="#i-x"></use></svg></button>
+      </header>
+
+      <section class="setup-progress-card" id="setupProgressCard">
+        <div class="settings-section-heading"><span><svg><use href="#i-circle-check"></use></svg></span><div><strong>Votre AGENDA est presque prêt</strong><small id="setupProgressCopy">Vérification de la configuration</small></div></div>
+        <div class="setup-progress-track"><span id="setupProgressFill"></span></div>
+        <div class="setup-checks" id="setupChecks"></div>
+      </section>
+
+      <section class="settings-group">
+        <div class="settings-section-heading"><span><svg><use href="#i-moon"></use></svg></span><div><strong>Apparence</strong><small>Le thème est synchronisé avec ton compte</small></div></div>
+        <div class="theme-picker" id="themePicker" role="group" aria-label="Choisir le thème">
+          <button class="tap" type="button" data-theme-choice="system">Automatique</button>
+          <button class="tap" type="button" data-theme-choice="light">Clair</button>
+          <button class="tap" type="button" data-theme-choice="dark">Sombre</button>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <div class="settings-section-heading"><span><svg><use href="#i-grid"></use></svg></span><div><strong>Accueil personnalisé</strong><small>Choisis les blocs à garder sur Aujourd’hui</small></div></div>
+        <div class="widget-settings" id="homeWidgetSettings">
+          <label><span><strong>Outils du quotidien</strong><small>Courses et routines</small></span><span class="switch"><input type="checkbox" data-home-widget-toggle="tools"><span></span></span></label>
+          <label><span><strong>Fil de la famille</strong><small>Résumé de ce qui compte</small></span><span class="switch"><input type="checkbox" data-home-widget-toggle="feed"><span></span></span></label>
+          <label><span><strong>Tâches du jour</strong><small>À faire aujourd’hui</small></span><span class="switch"><input type="checkbox" data-home-widget-toggle="tasks"><span></span></span></label>
+          <label><span><strong>Filtre famille</strong><small>Afficher les membres</small></span><span class="switch"><input type="checkbox" data-home-widget-toggle="members"><span></span></span></label>
+          <label><span><strong>Semaine</strong><small>Ruban des 7 jours</small></span><span class="switch"><input type="checkbox" data-home-widget-toggle="week"><span></span></span></label>
+          <label><span><strong>Fil de la journée</strong><small>Rendez-vous du jour sélectionné</small></span><span class="switch"><input type="checkbox" data-home-widget-toggle="timeline"><span></span></span></label>
+          <label><span><strong>Aperçu familial</strong><small>Cartes de respiration et souvenirs</small></span><span class="switch"><input type="checkbox" data-home-widget-toggle="insights"><span></span></span></label>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <div class="settings-section-heading"><span><svg><use href="#i-database"></use></svg></span><div><strong>Sauvegarde et restauration</strong><small>La restauration fusionne les données d’organisation sans supprimer les éléments plus récents</small></div></div>
+        <div class="settings-actions-grid">
+          <button class="secondary-button tap" id="settingsExportButton" type="button"><svg><use href="#i-download"></use></svg>Exporter</button>
+          <label class="secondary-button tap file-picker-button settings-restore-button" for="restoreBackupInput"><svg><use href="#i-upload"></use></svg>Restaurer</label>
+          <input id="restoreBackupInput" type="file" accept="application/json,.json" hidden>
+        </div>
+        <p class="settings-note">Les photos et PDF joints ne sont pas intégrés au fichier JSON. Ils restent protégés dans Supabase</p>
+      </section>
+
+      <section class="settings-group">
+        <div class="settings-section-heading"><span><svg><use href="#i-shield"></use></svg></span><div><strong>État de l’app</strong><small id="settingsSyncCopy">Contrôle de la synchronisation</small></div></div>
+        <div class="app-health-grid">
+          <div><span id="healthNetworkDot" class="health-dot"></span><strong id="healthNetwork">Réseau</strong><small id="healthNetworkCopy">—</small></div>
+          <div><span id="healthSyncDot" class="health-dot"></span><strong id="healthSync">Supabase</strong><small id="healthSyncCopy">—</small></div>
+          <div><span id="healthInstallDot" class="health-dot"></span><strong id="healthInstall">Installation</strong><small id="healthInstallCopy">—</small></div>
+        </div>
+        <button class="secondary-button tap settings-sync-button" id="forceSyncButton" type="button"><svg><use href="#i-refresh"></use></svg>Synchroniser maintenant</button>
+      </section>
     </section>
   </dialog>
 
@@ -706,6 +781,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="js/app.js?v=3.7.1"></script>
+  <script type="module" src="js/app.js?v=3.8.0"></script>
 </body>
 </html>
