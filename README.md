@@ -92,3 +92,7 @@ Pour une mise à jour existante, voir `MISE_A_JOUR_V3_4.md`.
 
 ## v3.5 — Hub familial du quotidien
 La v3.5 ajoute la liste de courses partagée, les routines familiales et un fil d'accueil unifié. Le module Repas reste volontairement hors périmètre. Pour une installation déjà en v3.4, voir `MISE_A_JOUR_V3_5.md`.
+
+
+## v3.6 — Collaboration
+La v3.6 ajoute un espace partagé aux rendez-vous et tâches : commentaires, réactions, accusés de lecture, pièces jointes privées, historique et recherche globale. Pour une installation déjà en v3.5, utiliser `supabase/upgrade_v3_6_collaboration.sql`.

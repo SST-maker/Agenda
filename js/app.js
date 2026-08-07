@@ -1,5 +1,5 @@
-import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.5.0';
-import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.5.0';
+import { store, CATEGORY_META, toISO, addDays } from './store.js?v=3.6.0';
+import { VAPID_PUBLIC_KEY } from './push-config.js?v=3.6.0';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -113,6 +113,42 @@ function routineIsCompleted(data, routineId, iso = toISO(new Date())) { return (
 function routineResponsible(data, routine) { return routine.responsibleMemberId ? memberById(data, routine.responsibleMemberId) : null; }
 function shoppingOpenItems(data) { return (data.shoppingItems || []).filter((item) => !item.checked); }
 function shoppingCategory(item) { return SHOPPING_CATEGORY_META[item.category] || SHOPPING_CATEGORY_META.other; }
+
+function memberForUserId(data, userId) {
+  return data.members.find((member) => member.linkedUserId === userId) || null;
+}
+function userDisplayName(data, userId) {
+  const member = memberForUserId(data, userId);
+  if (member) return memberDisplayName(member);
+  const current = store.getCurrentUser();
+  if (current?.id === userId) return current.displayName || 'Membre';
+  return 'Membre';
+}
+function contentItems(data, parentType, parentId) {
+  return {
+    comments: (data.comments || []).filter((item) => item.parentType === parentType && item.parentId === parentId),
+    reactions: (data.reactions || []).filter((item) => item.parentType === parentType && item.parentId === parentId),
+    reads: (data.reads || []).filter((item) => item.parentType === parentType && item.parentId === parentId),
+    attachments: (data.attachments || []).filter((item) => item.parentType === parentType && item.parentId === parentId),
+    activity: (data.activity || []).filter((item) => item.entityType === parentType && item.entityId === parentId)
+  };
+}
+function collaborationSummary(data, parentType, parentId) {
+  const items = contentItems(data, parentType, parentId);
+  const reactionCount = items.reactions.length;
+  return { comments: items.comments.length, attachments: items.attachments.length, reads: new Set(items.reads.map((item) => item.userId)).size, reactions: reactionCount };
+}
+function formatFileSize(bytes = 0) {
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} Mo`;
+}
+function formatActivityTime(value) {
+  const date = new Date(value);
+  const today = new Date();
+  if (toISO(date) === toISO(today)) return `Aujourd’hui · ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+  return `${date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} · ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+}
 
 function birthdayMembersForDate(data, iso) {
   const md = iso.slice(5);
@@ -294,11 +330,13 @@ function renderRoutinesDialog(data = store.getState()) {
 function taskCard(task, data, compact = false) {
   const responsible = taskResponsible(data, task);
   const overdue = task.status !== 'done' && task.dueDate < toISO(new Date());
+  const shared = collaborationSummary(data, 'task', task.id);
   return `<article class="task-card ${compact ? 'is-compact' : ''} ${task.status === 'done' ? 'is-done' : ''} ${overdue ? 'is-overdue' : ''}" data-task-id="${task.id}">
     <button class="task-check tap" type="button" data-toggle-task="${task.id}" aria-label="${task.status === 'done' ? 'Rouvrir' : 'Terminer'} ${escapeHTML(task.title)}">${task.status === 'done' ? icon('check') : ''}</button>
     <div class="task-main">
       <div class="task-title-row"><strong>${escapeHTML(task.title)}</strong>${task.priority === 'high' ? '<span class="task-priority">Important</span>' : ''}</div>
       <div class="task-meta"><span>${icon('clock')}${escapeHTML(taskDueLabel(task))}</span>${responsible ? `<span>${renderAvatar(responsible, { className: 'task-avatar' })}${escapeHTML(memberDisplayName(responsible))}</span>` : `<span>${icon('users')}Toute la famille</span>`}</div>
+      <button class="collaboration-mini tap" type="button" data-collaborate-type="task" data-collaborate-id="${task.id}">${icon('message')}<span>${shared.comments}</span>${icon('paperclip')}<span>${shared.attachments}</span>${icon('eye')}<span>${shared.reads}</span></button>
     </div>
     <button class="task-more tap" type="button" data-edit-task="${task.id}" aria-label="Modifier ${escapeHTML(task.title)}">${icon('more')}</button>
   </article>`;
@@ -357,6 +395,7 @@ function eventCard(event, data) {
   const category = CATEGORY_META[event.category] || CATEGORY_META.family;
   const people = event.memberIds.map((id) => memberById(data, id)).filter(Boolean);
   const responsible = event.responsibleMemberId ? memberById(data, event.responsibleMemberId) : null;
+  const shared = collaborationSummary(data, 'event', event.id);
   return `<article class="event-card" style="--event-color:${category.color}" data-event-id="${event.id}">
     <div class="event-top">
       <div>
@@ -370,7 +409,7 @@ function eventCard(event, data) {
       ${event.location ? `<span>${icon('map-pin')}${escapeHTML(event.location)}</span>` : ''}
       ${responsible ? `<span class="responsible-pill">${icon('user')}Responsable : ${escapeHTML(memberDisplayName(responsible))}</span>` : ''}
     </div>
-    <div class="event-avatars">${people.map((member) => renderAvatar(member, { title: memberDisplayName(member) })).join('')}</div>
+    <div class="event-bottom-row"><div class="event-avatars">${people.map((member) => renderAvatar(member, { title: memberDisplayName(member) })).join('')}</div><button class="collaboration-mini tap" type="button" data-collaborate-type="event" data-collaborate-id="${event.id}" aria-label="Ouvrir l'espace partagé">${icon('message')}<span>${shared.comments}</span>${icon('paperclip')}<span>${shared.attachments}</span>${icon('eye')}<span>${shared.reads}</span></button></div>
   </article>`;
 }
 
@@ -921,6 +960,129 @@ function deleteCurrentRoutine() {
   closeRoutineDialog();
   showToast('Routine supprimée.');
 }
+
+function parentContent(data, parentType, parentId) {
+  return parentType === 'event' ? data.events.find((item) => item.id === parentId) : data.tasks.find((item) => item.id === parentId);
+}
+
+function renderCollaborationDialog() {
+  const parentType = $('#collaborationParentType').value;
+  const parentId = $('#collaborationParentId').value;
+  if (!parentType || !parentId) return;
+  const data = store.getState();
+  const parent = parentContent(data, parentType, parentId);
+  if (!parent) return;
+  const items = contentItems(data, parentType, parentId);
+  const user = store.getCurrentUser();
+  $('#collaborationTypeLabel').textContent = parentType === 'event' ? 'Rendez-vous partagé' : 'Tâche partagée';
+  $('#collaborationTitle').textContent = parent.title;
+  $('#collaborationSubtitle').textContent = parentType === 'event' ? `${parent.allDay ? 'Toute la journée' : parent.time} · ${capitalize(longDate.format(parseISO(parent.date)))}` : taskDueLabel(parent);
+
+  const reactionTypes = ['👍','❤️','✅'];
+  $('#collaborationReactions').innerHTML = reactionTypes.map((reaction) => {
+    const matching = items.reactions.filter((item) => item.reaction === reaction);
+    const active = matching.some((item) => item.userId === user?.id);
+    return `<button class="reaction-button tap ${active ? 'is-active' : ''}" type="button" data-reaction="${reaction}"><span>${reaction}</span><strong>${matching.length || ''}</strong></button>`;
+  }).join('');
+
+  const readerIds = [...new Set(items.reads.map((item) => item.userId))];
+  $('#collaborationSeen').innerHTML = readerIds.length
+    ? `${icon('eye')}<span>Vu par ${readerIds.map((id) => escapeHTML(userDisplayName(data, id))).join(', ')}</span>`
+    : `${icon('eye')}<span>Pas encore consulté par la famille</span>`;
+
+  $('#commentCount').textContent = `${items.comments.length}`;
+  $('#commentList').innerHTML = items.comments.length ? items.comments.map((comment) => {
+    const mine = comment.authorUserId === user?.id;
+    const canDelete = mine || user?.role === 'admin';
+    return `<article class="comment-item ${mine ? 'is-mine' : ''}"><div class="comment-avatar">${renderAvatar(memberForUserId(data, comment.authorUserId), { fallback: initialsFor(userDisplayName(data, comment.authorUserId)) })}</div><div class="comment-bubble"><div><strong>${escapeHTML(userDisplayName(data, comment.authorUserId))}</strong><time>${formatActivityTime(comment.createdAt)}</time></div><p>${escapeHTML(comment.body)}</p></div>${canDelete ? `<button class="comment-delete tap" type="button" data-delete-comment="${comment.id}" aria-label="Supprimer">${icon('trash')}</button>` : ''}</article>`;
+  }).join('') : `<div class="collaboration-empty">Aucun commentaire. Écris le premier message.</div>`;
+
+  $('#attachmentCount').textContent = `${items.attachments.length}`;
+  $('#attachmentList').innerHTML = items.attachments.length ? items.attachments.map((attachment) => {
+    const canDelete = attachment.uploadedBy === user?.id || user?.role === 'admin';
+    return `<article class="attachment-item"><button class="attachment-open tap" type="button" data-open-attachment="${attachment.id}"><span class="attachment-icon">${attachment.mimeType === 'application/pdf' ? 'PDF' : 'IMG'}</span><div><strong>${escapeHTML(attachment.fileName)}</strong><small>${formatFileSize(attachment.fileSize)}</small></div></button>${canDelete ? `<button class="comment-delete tap" type="button" data-delete-attachment="${attachment.id}" aria-label="Supprimer">${icon('trash')}</button>` : ''}</article>`;
+  }).join('') : `<div class="collaboration-empty">Aucune pièce jointe.</div>`;
+
+  const activityLabels = { created:'a créé', updated:'a modifié', deleted:'a supprimé', completed:'a terminé', reopened:'a rouvert', commented:'a commenté', attached:'a joint un fichier' };
+  $('#collaborationActivity').innerHTML = items.activity.length ? items.activity.slice(0, 12).map((entry) => `<div class="activity-item"><span class="activity-dot"></span><div><strong>${escapeHTML(userDisplayName(data, entry.actorUserId))} ${escapeHTML(activityLabels[entry.action] || 'a mis à jour')}</strong><p>${escapeHTML(entry.summary || parent.title)}</p><time>${formatActivityTime(entry.createdAt)}</time></div></div>`).join('') : `<div class="collaboration-empty">L’historique commencera avec les prochaines modifications.</div>`;
+}
+
+async function openCollaborationDialog(parentType, parentId) {
+  $('#collaborationParentType').value = parentType;
+  $('#collaborationParentId').value = parentId;
+  renderCollaborationDialog();
+  $('#collaborationDialog').showModal();
+  vibration();
+  try { await store.markRead(parentType, parentId); renderCollaborationDialog(); } catch { /* le vu par se synchronisera plus tard */ }
+}
+function closeCollaborationDialog() { if ($('#collaborationDialog').open) $('#collaborationDialog').close(); }
+
+async function submitComment(event) {
+  event.preventDefault();
+  const input = $('#commentInput');
+  const body = input.value.trim();
+  if (!body) return;
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    await store.addComment($('#collaborationParentType').value, $('#collaborationParentId').value, body);
+    input.value = '';
+    renderCollaborationDialog();
+  } catch (error) { showToast(error.message || 'Commentaire impossible.'); }
+  finally { button.disabled = false; }
+}
+
+async function handleCollaborationAttachment(event) {
+  const file = event.currentTarget.files?.[0];
+  if (!file) return;
+  try {
+    showToast('Envoi du fichier…');
+    await store.uploadAttachment($('#collaborationParentType').value, $('#collaborationParentId').value, file);
+    renderCollaborationDialog();
+    showToast('Pièce jointe ajoutée.');
+  } catch (error) { showToast(error.message || 'Envoi impossible.'); }
+  finally { event.currentTarget.value = ''; }
+}
+
+function searchAll(query) {
+  const data = store.getState();
+  const q = String(query || '').trim().toLocaleLowerCase('fr');
+  if (q.length < 2) return [];
+  const results = [];
+  const push = (type, id, title, detail, haystack, parentType = '', parentId = '') => {
+    if (String(haystack || '').toLocaleLowerCase('fr').includes(q)) results.push({ type, id, title, detail, parentType, parentId });
+  };
+  data.events.forEach((item) => push('event', item.id, item.title, `${item.date} · ${item.allDay ? 'journée' : item.time}`, `${item.title} ${item.location} ${item.notes}`));
+  data.tasks.forEach((item) => push('task', item.id, item.title, taskDueLabel(item), `${item.title} ${item.notes}`));
+  data.shoppingItems.forEach((item) => push('shopping', item.id, item.name, 'Courses', `${item.name} ${item.quantity} ${shoppingCategory(item).label}`));
+  data.routines.forEach((item) => push('routine', item.id, item.title, 'Routine', `${item.title} ${item.notes} ${routineDaysLabel(item)}`));
+  data.comments.forEach((item) => push('comment', item.id, item.body, 'Commentaire', item.body, item.parentType, item.parentId));
+  data.attachments.forEach((item) => push('attachment', item.id, item.fileName, 'Pièce jointe', item.fileName, item.parentType, item.parentId));
+  data.activity.forEach((item) => {
+    const parentType = item.entityType === 'event' || item.entityType === 'task' ? item.entityType : '';
+    if (parentType) push('activity', item.id, item.summary || 'Activité familiale', 'Historique', `${item.summary} ${item.action}`, parentType, item.entityId);
+  });
+  return results.slice(0, 40);
+}
+
+function renderSearchResults() {
+  const results = searchAll($('#globalSearchInput').value);
+  const box = $('#globalSearchResults');
+  if ($('#globalSearchInput').value.trim().length < 2) {
+    const data = store.getState();
+    const labels = { created:'a créé', updated:'a modifié', deleted:'a supprimé', completed:'a terminé', reopened:'a rouvert', commented:'a commenté', attached:'a joint un fichier', shopping_added:'a ajouté aux courses', shopping_checked:'a pris', shopping_updated:'a modifié une course', shopping_deleted:'a retiré une course', routine_created:'a créé une routine', routine_updated:'a modifié une routine', routine_deleted:'a supprimé une routine' };
+    box.innerHTML = data.activity?.length ? `<div class="search-recent-title"><strong>Activité récente</strong><small>Dernières actions de la famille</small></div>${data.activity.slice(0, 12).map((item) => `<div class="search-activity-row"><span class="activity-dot"></span><div><strong>${escapeHTML(userDisplayName(data, item.actorUserId))} ${escapeHTML(labels[item.action] || 'a mis à jour')}</strong><small>${escapeHTML(item.summary || 'AGENDA')} · ${formatActivityTime(item.createdAt)}</small></div></div>`).join('')}` : `<div class="empty-state"><strong>Recherche dans toute la famille.</strong><p>Écris au moins deux lettres. L’activité récente apparaîtra ici dès les prochaines modifications.</p></div>`;
+    return;
+  }
+  box.innerHTML = results.length ? results.map((item) => `<button class="search-result tap" type="button" data-search-result-type="${item.type}" data-search-result-id="${item.id}" data-search-parent-type="${item.parentType}" data-search-parent-id="${item.parentId}"><span class="search-result-icon">${item.type === 'event' ? icon('calendar') : item.type === 'task' ? icon('clipboard') : item.type === 'shopping' ? icon('cart') : item.type === 'routine' ? icon('repeat') : item.type === 'attachment' ? icon('paperclip') : item.type === 'activity' ? icon('history') : icon('message')}</span><div><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(item.detail)}</small></div>${icon('chevron-right')}</button>`).join('') : `<div class="empty-state"><strong>Aucun résultat.</strong><p>Essaie un autre mot.</p></div>`;
+}
+
+function openSearchDialog() {
+  $('#searchDialog').showModal();
+  requestAnimationFrame(() => $('#globalSearchInput').focus());
+  vibration();
+}
+function closeSearchDialog() { if ($('#searchDialog').open) $('#searchDialog').close(); }
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -1508,9 +1670,35 @@ function setupEvents() {
     if (event.target.closest('[data-close-shopping]')) closeShoppingDialog();
     if (event.target.closest('[data-close-routines]')) closeRoutinesDialog();
     if (event.target.closest('[data-close-routine-dialog]')) closeRoutineDialog();
+    if (event.target.closest('[data-close-collaboration]')) closeCollaborationDialog();
+    if (event.target.closest('[data-close-search]')) closeSearchDialog();
     if (event.target.closest('[data-open-task]')) openTaskDialog();
     if (event.target.closest('[data-open-shopping]')) openShoppingDialog();
     if (event.target.closest('[data-open-routine]')) openRoutineDialog();
+
+    const collaborationButton = event.target.closest('[data-collaborate-type]');
+    if (collaborationButton) openCollaborationDialog(collaborationButton.dataset.collaborateType, collaborationButton.dataset.collaborateId);
+
+    const reactionButton = event.target.closest('[data-reaction]');
+    if (reactionButton) {
+      store.toggleReaction($('#collaborationParentType').value, $('#collaborationParentId').value, reactionButton.dataset.reaction).then(renderCollaborationDialog).catch((error) => showToast(error.message || 'Réaction impossible.'));
+    }
+    const deleteCommentButton = event.target.closest('[data-delete-comment]');
+    if (deleteCommentButton) store.deleteComment(deleteCommentButton.dataset.deleteComment).then(renderCollaborationDialog).catch((error) => showToast(error.message || 'Suppression impossible.'));
+    const openAttachmentButton = event.target.closest('[data-open-attachment]');
+    if (openAttachmentButton) store.openAttachment(openAttachmentButton.dataset.openAttachment).catch((error) => showToast(error.message || 'Ouverture impossible.'));
+    const deleteAttachmentButton = event.target.closest('[data-delete-attachment]');
+    if (deleteAttachmentButton && confirm('Supprimer cette pièce jointe ?')) store.deleteAttachment(deleteAttachmentButton.dataset.deleteAttachment).then(renderCollaborationDialog).catch((error) => showToast(error.message || 'Suppression impossible.'));
+
+    const searchResult = event.target.closest('[data-search-result-type]');
+    if (searchResult) {
+      closeSearchDialog();
+      const type = searchResult.dataset.searchResultType;
+      if (type === 'event' || type === 'task') openCollaborationDialog(type, searchResult.dataset.searchResultId);
+      else if (type === 'comment' || type === 'attachment' || type === 'activity') openCollaborationDialog(searchResult.dataset.searchParentType, searchResult.dataset.searchParentId);
+      else if (type === 'shopping') openShoppingDialog();
+      else if (type === 'routine') openRoutinesDialog();
+    }
 
     const authModeButton = event.target.closest('[data-auth-mode]');
     if (authModeButton) showAuthMode(authModeButton.dataset.authMode);
@@ -1601,6 +1789,7 @@ function setupEvents() {
   $('#quietModeToggle').addEventListener('change', (event) => { store.setSetting('quietMode', event.target.checked); showToast(event.target.checked ? 'Mode doux activé.' : 'Mode doux désactivé.'); });
   $('#protectMomentButton').addEventListener('click', () => { openEventDialog(); $('#eventForm').elements.title.value = 'Temps pour soi'; });
   $('#accountButton').addEventListener('click', openAccountDialog);
+  $('#searchButton').addEventListener('click', openSearchDialog);
   $('#notificationButton').addEventListener('click', openNotificationDialog);
   $('#manageNotificationsButton').addEventListener('click', openNotificationDialog);
   $('#enableNotificationsButton').addEventListener('click', toggleSystemNotifications);
@@ -1642,6 +1831,11 @@ function setupEvents() {
   $('#shoppingDialog').addEventListener('click', (event) => { if (event.target === $('#shoppingDialog')) closeShoppingDialog(); });
   $('#routinesDialog').addEventListener('click', (event) => { if (event.target === $('#routinesDialog')) closeRoutinesDialog(); });
   $('#routineDialog').addEventListener('click', (event) => { if (event.target === $('#routineDialog')) closeRoutineDialog(); });
+  $('#collaborationDialog').addEventListener('click', (event) => { if (event.target === $('#collaborationDialog')) closeCollaborationDialog(); });
+  $('#searchDialog').addEventListener('click', (event) => { if (event.target === $('#searchDialog')) closeSearchDialog(); });
+  $('#commentForm').addEventListener('submit', submitComment);
+  $('#collaborationAttachmentInput').addEventListener('change', handleCollaborationAttachment);
+  $('#globalSearchInput').addEventListener('input', renderSearchResults);
   $('#loginForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.login(payload)); });
   $('#setupForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.setup(payload)); });
   $('#inviteForm').addEventListener('submit', (event) => { event.preventDefault(); submitAuthForm(event.currentTarget, (payload) => store.acceptInvite(payload)); });
@@ -1700,6 +1894,8 @@ function setupEvents() {
     if (reason === 'operation-rejected') showToast(event.detail?.error?.message || 'Une modification a été refusée.');
     if (reason === 'sync-error') showToast('La synchronisation reprendra automatiquement.');
     if (store.getAuthStatus().authenticated) render();
+    if ($('#collaborationDialog').open) renderCollaborationDialog();
+    if ($('#searchDialog').open) renderSearchResults();
     updateConnection();
   });
   setupSwipe();

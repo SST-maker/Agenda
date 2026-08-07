@@ -126,4 +126,21 @@ store.deleteRoutine(routine.id);
 await new Promise((resolve) => setTimeout(resolve, 30));
 assert.equal(mockDb.routines.length, 0);
 
-console.log('Test du store réussi : auth, événements, séries, tâches, courses, routines, notifications, identité familiale, profils et invitation.');
+const sharedEvent = store.addEvent({
+  title: 'Réunion famille', date: '2026-08-15', time: '10:00', duration: 60, category: 'family', location: '', notes: '', memberIds: [store.getState().members[0].id]
+});
+await new Promise((resolve) => setTimeout(resolve, 30));
+await store.addComment('event', sharedEvent.id, 'Je prends les documents.');
+assert.equal(store.getState().comments.length, 1);
+await store.toggleReaction('event', sharedEvent.id, '👍');
+assert.equal(store.getState().reactions.length, 1);
+await store.markRead('event', sharedEvent.id);
+assert.equal(store.getState().reads.length, 1);
+await store.toggleReaction('event', sharedEvent.id, '👍');
+assert.equal(store.getState().reactions.length, 0);
+await store.deleteComment(store.getState().comments[0].id);
+assert.equal(store.getState().comments.length, 0);
+store.deleteEvent(sharedEvent.id);
+await new Promise((resolve) => setTimeout(resolve, 30));
+
+console.log('Test du store réussi : auth, événements, séries, tâches, courses, routines, notifications, collaboration, identité familiale, profils et invitation.');

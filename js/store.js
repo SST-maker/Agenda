@@ -1,11 +1,11 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js';
 
-const STORAGE_KEY = 'agenda-family-supabase-state-v5';
-const QUEUE_KEY = 'agenda-family-supabase-queue-v5';
-const PENDING_ONBOARDING_KEY = 'agenda-family-supabase-onboarding-v5';
+const STORAGE_KEY = 'agenda-family-supabase-state-v6';
+const QUEUE_KEY = 'agenda-family-supabase-queue-v6';
+const PENDING_ONBOARDING_KEY = 'agenda-family-supabase-onboarding-v6';
 const CHANNEL_NAME = 'agenda-family-supabase-tabs';
-const DATA_VERSION = 5;
+const DATA_VERSION = 6;
 
 const uid = () => globalThis.crypto?.randomUUID?.() || `evt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -46,6 +46,11 @@ function createSeed() {
     shoppingItems: [],
     routines: [],
     routineCompletions: [],
+    comments: [],
+    reactions: [],
+    reads: [],
+    attachments: [],
+    activity: [],
     notificationPreferences: { pushEnabled: false, eventReminders: true, taskReminders: true, dailySummary: true, dailySummaryTime: '07:30' },
     syncedAt: null
   };
@@ -64,6 +69,11 @@ function normalizeState(candidate) {
     shoppingItems: Array.isArray(candidate.shoppingItems) ? candidate.shoppingItems : [],
     routines: Array.isArray(candidate.routines) ? candidate.routines : [],
     routineCompletions: Array.isArray(candidate.routineCompletions) ? candidate.routineCompletions : [],
+    comments: Array.isArray(candidate.comments) ? candidate.comments : [],
+    reactions: Array.isArray(candidate.reactions) ? candidate.reactions : [],
+    reads: Array.isArray(candidate.reads) ? candidate.reads : [],
+    attachments: Array.isArray(candidate.attachments) ? candidate.attachments : [],
+    activity: Array.isArray(candidate.activity) ? candidate.activity : [],
     notificationPreferences: {
       pushEnabled: Boolean(candidate.notificationPreferences?.pushEnabled),
       eventReminders: candidate.notificationPreferences?.eventReminders !== false,
@@ -243,6 +253,69 @@ function mapRoutineCompletion(row) {
     routineId: row.routine_id,
     date: row.completion_date,
     completedBy: row.completed_by || null,
+    createdAt: row.created_at
+  };
+}
+
+
+function mapComment(row) {
+  return {
+    id: row.id,
+    familyId: row.family_id,
+    parentType: row.parent_type,
+    parentId: row.parent_id,
+    body: row.body,
+    authorUserId: row.author_user_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapReaction(row) {
+  return {
+    familyId: row.family_id,
+    parentType: row.parent_type,
+    parentId: row.parent_id,
+    userId: row.user_id,
+    reaction: row.reaction,
+    createdAt: row.created_at
+  };
+}
+
+function mapRead(row) {
+  return {
+    familyId: row.family_id,
+    parentType: row.parent_type,
+    parentId: row.parent_id,
+    userId: row.user_id,
+    readAt: row.read_at
+  };
+}
+
+function mapAttachment(row) {
+  return {
+    id: row.id,
+    familyId: row.family_id,
+    parentType: row.parent_type,
+    parentId: row.parent_id,
+    fileName: row.file_name,
+    mimeType: row.mime_type || 'application/octet-stream',
+    fileSize: Number(row.file_size || 0),
+    storagePath: row.storage_path,
+    uploadedBy: row.uploaded_by,
+    createdAt: row.created_at
+  };
+}
+
+function mapActivity(row) {
+  return {
+    id: row.id,
+    familyId: row.family_id,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    action: row.action,
+    summary: row.summary || '',
+    actorUserId: row.actor_user_id || null,
     createdAt: row.created_at
   };
 }
@@ -566,7 +639,7 @@ class AgendaStore extends EventTarget {
     }
 
     const familyId = membershipResult.data.family_id;
-    const [familyResult, membersResult, eventsResult, tasksResult, shoppingResult, routinesResult, routineCompletionsResult, notificationPreferencesResult] = await Promise.all([
+    const [familyResult, membersResult, eventsResult, tasksResult, shoppingResult, routinesResult, routineCompletionsResult, commentsResult, reactionsResult, readsResult, attachmentsResult, activityResult, notificationPreferencesResult] = await Promise.all([
       this.supabase.from('families').select('id, name, symbol, photo_url, quiet_mode, invite_expires_at').eq('id', familyId).single(),
       this.supabase.from('members').select('*').eq('family_id', familyId).order('sort_order'),
       this.supabase.from('events').select('*').eq('family_id', familyId).order('event_date').order('event_time'),
@@ -574,9 +647,14 @@ class AgendaStore extends EventTarget {
       this.supabase.from('shopping_items').select('*').eq('family_id', familyId).order('checked').order('created_at'),
       this.supabase.from('routines').select('*').eq('family_id', familyId).order('routine_time').order('title'),
       this.supabase.from('routine_completions').select('*').eq('family_id', familyId),
+      this.supabase.from('content_comments').select('*').eq('family_id', familyId).order('created_at'),
+      this.supabase.from('content_reactions').select('*').eq('family_id', familyId),
+      this.supabase.from('content_reads').select('*').eq('family_id', familyId),
+      this.supabase.from('content_attachments').select('*').eq('family_id', familyId).order('created_at'),
+      this.supabase.from('activity_log').select('*').eq('family_id', familyId).order('created_at', { ascending: false }).limit(150),
       this.supabase.from('notification_preferences').select('*').eq('user_id', userId).maybeSingle()
     ]);
-    for (const result of [familyResult, membersResult, eventsResult, tasksResult, shoppingResult, routinesResult, routineCompletionsResult, notificationPreferencesResult]) if (result.error) throw result.error;
+    for (const result of [familyResult, membersResult, eventsResult, tasksResult, shoppingResult, routinesResult, routineCompletionsResult, commentsResult, reactionsResult, readsResult, attachmentsResult, activityResult, notificationPreferencesResult]) if (result.error) throw result.error;
 
     this.needsFamily = false;
     this.currentUser = {
@@ -597,6 +675,11 @@ class AgendaStore extends EventTarget {
       shoppingItems: shoppingResult.data.map(mapShoppingItem),
       routines: routinesResult.data.map(mapRoutine),
       routineCompletions: routineCompletionsResult.data.map(mapRoutineCompletion),
+      comments: commentsResult.data.map(mapComment),
+      reactions: reactionsResult.data.map(mapReaction),
+      reads: readsResult.data.map(mapRead),
+      attachments: attachmentsResult.data.map(mapAttachment),
+      activity: activityResult.data.map(mapActivity),
       notificationPreferences: mapNotificationPreferences(notificationPreferencesResult.data),
       syncedAt: new Date().toISOString()
     };
@@ -619,6 +702,11 @@ class AgendaStore extends EventTarget {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_items' }, schedulePull)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'routines' }, schedulePull)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'routine_completions' }, schedulePull)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'content_comments' }, schedulePull)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'content_reactions' }, schedulePull)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'content_reads' }, schedulePull)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'content_attachments' }, schedulePull)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_log' }, schedulePull)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, schedulePull)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'families' }, schedulePull)
       .subscribe((status) => {
@@ -904,6 +992,77 @@ class AgendaStore extends EventTarget {
     });
   }
 
+  async addComment(parentType, parentId, body) {
+    if (!navigator.onLine) throw new Error('Une connexion Internet est nécessaire pour commenter.');
+    const familyId = this.state.family?.id;
+    const userId = this.session?.user?.id;
+    const value = String(body || '').trim();
+    if (!familyId || !userId || !value) throw new Error('Commentaire invalide.');
+    const { error } = await this.supabase.from('content_comments').insert({ id: uid(), family_id: familyId, parent_type: parentType, parent_id: parentId, body: value.slice(0, 1000), author_user_id: userId });
+    if (error) throw error;
+    await this.pullRemote();
+  }
+
+  async deleteComment(id) {
+    if (!navigator.onLine) throw new Error('Connexion Internet requise.');
+    const { error } = await this.supabase.from('content_comments').delete().eq('id', id);
+    if (error) throw error;
+    await this.pullRemote();
+  }
+
+  async toggleReaction(parentType, parentId, reaction) {
+    if (!navigator.onLine) throw new Error('Connexion Internet requise.');
+    const familyId = this.state.family?.id;
+    const userId = this.session?.user?.id;
+    const existing = this.state.reactions.find((item) => item.parentType === parentType && item.parentId === parentId && item.userId === userId && item.reaction === reaction);
+    let result;
+    if (existing) result = await this.supabase.from('content_reactions').delete().eq('parent_type', parentType).eq('parent_id', parentId).eq('user_id', userId).eq('reaction', reaction);
+    else result = await this.supabase.from('content_reactions').insert({ family_id: familyId, parent_type: parentType, parent_id: parentId, user_id: userId, reaction });
+    if (result.error) throw result.error;
+    await this.pullRemote();
+  }
+
+  async markRead(parentType, parentId) {
+    if (!navigator.onLine || !this.session?.user?.id || !this.state.family?.id) return;
+    const { error } = await this.supabase.from('content_reads').upsert({ family_id: this.state.family.id, parent_type: parentType, parent_id: parentId, user_id: this.session.user.id, read_at: new Date().toISOString() }, { onConflict: 'parent_type,parent_id,user_id' });
+    if (!error) await this.pullRemote();
+  }
+
+  async uploadAttachment(parentType, parentId, file) {
+    if (!navigator.onLine) throw new Error('Connexion Internet requise pour joindre un fichier.');
+    if (!file || file.size > 10 * 1024 * 1024) throw new Error('Le fichier doit faire moins de 10 Mo.');
+    const allowed = ['image/jpeg','image/png','image/webp','application/pdf'];
+    if (!allowed.includes(file.type)) throw new Error('Formats acceptés : JPG, PNG, WEBP ou PDF.');
+    const familyId = this.state.family?.id;
+    const userId = this.session?.user?.id;
+    const safeName = String(file.name || 'fichier').normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(-100) || 'fichier';
+    const attachmentId = uid();
+    const path = `${familyId}/${parentType}/${parentId}/${attachmentId}-${safeName}`;
+    const upload = await this.supabase.storage.from('agenda-attachments').upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+    if (upload.error) throw upload.error;
+    const insert = await this.supabase.from('content_attachments').insert({ id: attachmentId, family_id: familyId, parent_type: parentType, parent_id: parentId, file_name: safeName, mime_type: file.type, file_size: file.size, storage_path: path, uploaded_by: userId });
+    if (insert.error) { await this.supabase.storage.from('agenda-attachments').remove([path]); throw insert.error; }
+    await this.pullRemote();
+  }
+
+  async openAttachment(id) {
+    const attachment = this.state.attachments.find((item) => item.id === id);
+    if (!attachment) throw new Error('Pièce jointe introuvable.');
+    const { data, error } = await this.supabase.storage.from('agenda-attachments').createSignedUrl(attachment.storagePath, 120);
+    if (error) throw error;
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  async deleteAttachment(id) {
+    if (!navigator.onLine) throw new Error('Connexion Internet requise.');
+    const attachment = this.state.attachments.find((item) => item.id === id);
+    if (!attachment) return;
+    const result = await this.supabase.from('content_attachments').delete().eq('id', id);
+    if (result.error) throw result.error;
+    await this.supabase.storage.from('agenda-attachments').remove([attachment.storagePath]);
+    await this.pullRemote();
+  }
+
   exportData() {
     const payload = {
       exportedAt: new Date().toISOString(),
@@ -914,6 +1073,11 @@ class AgendaStore extends EventTarget {
       shoppingItems: this.state.shoppingItems,
       routines: this.state.routines,
       routineCompletions: this.state.routineCompletions,
+      comments: this.state.comments,
+      reactions: this.state.reactions,
+      reads: this.state.reads,
+      attachments: this.state.attachments,
+      activity: this.state.activity,
       notificationPreferences: this.state.notificationPreferences,
       settings: this.state.settings
     };

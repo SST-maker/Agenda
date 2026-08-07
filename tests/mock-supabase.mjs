@@ -16,6 +16,7 @@ export const mockDb = {
   routines: [],
   routineCompletions: [],
   notificationPreferences: null,
+  comments: [], reactions: [], reads: [], attachments: [], activity: [],
   pushSubscriptions: []
 };
 
@@ -24,6 +25,7 @@ class Query {
   select() { this.action = 'select'; return this; }
   eq(key, value) { this.filters.push([key, value]); return this; }
   order() { return this; }
+  limit() { return this; }
   maybeSingle() { return Promise.resolve(this.run()); }
   single() { return Promise.resolve(this.run()); }
   upsert(value) { this.action = 'upsert'; this.payload = value; return Promise.resolve(this.run()); }
@@ -43,6 +45,11 @@ class Query {
       if (this.table === 'shopping_items') return { data: structuredClone(mockDb.shoppingItems), error: null };
       if (this.table === 'routines') return { data: structuredClone(mockDb.routines), error: null };
       if (this.table === 'routine_completions') return { data: structuredClone(mockDb.routineCompletions), error: null };
+      if (this.table === 'content_comments') return { data: structuredClone(mockDb.comments), error: null };
+      if (this.table === 'content_reactions') return { data: structuredClone(mockDb.reactions), error: null };
+      if (this.table === 'content_reads') return { data: structuredClone(mockDb.reads), error: null };
+      if (this.table === 'content_attachments') return { data: structuredClone(mockDb.attachments), error: null };
+      if (this.table === 'activity_log') return { data: structuredClone(mockDb.activity), error: null };
       if (this.table === 'notification_preferences') return { data: mockDb.notificationPreferences ? structuredClone(mockDb.notificationPreferences) : null, error: null };
       if (this.table === 'push_subscriptions') return { data: structuredClone(mockDb.pushSubscriptions), error: null };
     }
@@ -136,6 +143,36 @@ class Query {
       });
       return { data: null, error: null };
     }
+
+    if (this.table === 'content_comments' && this.action === 'insert') {
+      const row = { ...this.payload, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      mockDb.comments.push(row);
+      return { data: null, error: null };
+    }
+    if (this.table === 'content_comments' && this.action === 'delete') {
+      const id = this.filters.find(([key]) => key === 'id')?.[1];
+      mockDb.comments = mockDb.comments.filter((item) => item.id !== id);
+      return { data: null, error: null };
+    }
+    if (this.table === 'content_reactions' && this.action === 'insert') {
+      mockDb.reactions.push({ ...this.payload, created_at: new Date().toISOString() });
+      return { data: null, error: null };
+    }
+    if (this.table === 'content_reactions' && this.action === 'delete') {
+      const parentType = this.filters.find(([key]) => key === 'parent_type')?.[1];
+      const parentId = this.filters.find(([key]) => key === 'parent_id')?.[1];
+      const user = this.filters.find(([key]) => key === 'user_id')?.[1];
+      const reaction = this.filters.find(([key]) => key === 'reaction')?.[1];
+      mockDb.reactions = mockDb.reactions.filter((item) => !(item.parent_type === parentType && item.parent_id === parentId && item.user_id === user && item.reaction === reaction));
+      return { data: null, error: null };
+    }
+    if (this.table === 'content_reads' && this.action === 'upsert') {
+      const row = { ...this.payload };
+      const index = mockDb.reads.findIndex((item) => item.parent_type === row.parent_type && item.parent_id === row.parent_id && item.user_id === row.user_id);
+      if (index >= 0) mockDb.reads[index] = row; else mockDb.reads.push(row);
+      return { data: null, error: null };
+    }
+
     if (this.table === 'notification_preferences' && this.action === 'upsert') {
       mockDb.notificationPreferences = { ...this.payload, updated_at: new Date().toISOString() };
       return { data: null, error: null };
@@ -188,6 +225,13 @@ export function createClient() {
       return { data: {}, error: null };
     },
     channel() { return { on() { return this; }, subscribe(callback) { callback('SUBSCRIBED'); return this; } }; },
-    removeChannel() {}
+    removeChannel() {},
+    storage: {
+      from() { return {
+        async upload(path, file) { return { data: { path }, error: null }; },
+        async remove() { return { data: [], error: null }; },
+        async createSignedUrl(path) { return { data: { signedUrl: `https://example.test/${path}` }, error: null }; }
+      }; }
+    }
   };
 }
